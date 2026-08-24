@@ -85,8 +85,7 @@ export default function CartePage() {
         </div>
       </div>
 
-      {/* Carte */}
-      <LandisMap search={search} />
+      
 
     </div>
   );
