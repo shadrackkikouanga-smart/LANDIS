@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Project {
+  id          Int           @id @default(autoincrement())
+  name        String
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  area        Float
+  endDate     DateTime?
+  location    String?
+  reference   String        @unique
+  startDate   DateTime?
+  status      ProjectStatus @default(EN_PREPARATION)
+  terrains    Terrain[]
+}
+
+model Terrain {
+  id           Int      @id @default(autoincrement())
+  reference    String   @unique
+  nom          String
+  superficie   Float
+  localisation String?
+  statut       String   @default("DISPONIBLE")
+  latitude      Float?
+  longitude     Float?
+  projectId    Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  blocs        Bloc[]
+  project      Project  @relation(fields: [projectId], references: [id])
+}
+
+model Bloc {
+  id              Int        @id @default(autoincrement())
+  reference       String     @unique
+  nombreParcelles Int
+  terrainId       Int
+  latitude      Float?
+  longitude     Float?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  superficie      Float
+  terrain         Terrain    @relation(fields: [terrainId], references: [id])
+  parcelles       Parcelle[]
+}
+
+model Proprietaire {
+  id        Int        @id @default(autoincrement())
+  nom       String
+  telephone String
+  email     String?
+  adresse   String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  prenom    String
+  parcelles Parcelle[]
+}
+
+model Acquereur {
+  id           Int           @id @default(autoincrement())
+  nom          String
+  prenom       String
+  telephone    String
+  email        String?
+  adresse      String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+}
+
+model Parcelle {
+  id              Int           @id @default(autoincrement())
+  reference       String        @unique
+  numero          String
+  superficie      Float
+  statut          String        @default("DISPONIBLE")
+  latitude        Float?
+  longitude       Float?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  proprietaireId  Int?
+  dateAttribution DateTime?
+  blocId          Int
+  bloc            Bloc          @relation(fields: [blocId], references: [id])
+  proprietaire    Proprietaire? @relation(fields: [proprietaireId], references: [id])
+  transactions    Transaction[]
+}
+
+model Transaction {
+  id              Int               @id @default(autoincrement())
+  parcelleId      Int
+  acquereurId     Int
+  type            TypeTransaction
+  statut          StatutTransaction @default(EN_ATTENTE)
+  prix            Float?
+  dateTransaction DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  statutPaiement  StatutPaiement    @default(NON_PAYE)
+  documents       Document[]
+  paiements       Paiement[]
+  acquereur       Acquereur         @relation(fields: [acquereurId], references: [id])
+  parcelle        Parcelle          @relation(fields: [parcelleId], references: [id])
+}
+
+model Paiement {
+  id            Int         @id @default(autoincrement())
+  transactionId Int
+  montant       Float
+  modePaiement  String
+  reference     String?
+  commentaire   String?
+  datePaiement  DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  numeroRecu    String      @unique
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+}
+
+model Document {
+  id            Int         @id @default(autoincrement())
+  numero        String      @unique
+  type          String
+  transactionId Int
+  nomFichier    String
+  chemin        String?
+  createdAt     DateTime    @default(now())
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+}
+
+model User {
+  id         Int          @id @default(autoincrement())
+  name       String
+  email      String       @unique
+  password   String
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  role       Role         @default(USER)
+  Historique Historique[]
+}
+
+model Organization {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String?
+  telephone String?
+  adresse   String?
+  ville     String?
+  pays      String?
+  logo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Historique {
+  id            Int      @id @default(autoincrement())
+  action        String
+  module        String
+  description   String
+  utilisateurId Int?
+  createdAt     DateTime @default(now())
+  User          User?    @relation(fields: [utilisateurId], references: [id])
+
+  @@index([createdAt])
+  @@index([module])
+  @@index([utilisateurId])
+}
+
+enum StatutPaiement {
+  NON_PAYE
+  PARTIEL
+  PAYE
+}
+
+enum Role {
+  USER
+  DIRECTEUR
+  CHEF_PROJET
+  COMMERCIAL
+  GEOMETRE
+}
+
+enum ProjectStatus {
+  EN_PREPARATION
+  EN_COURS
+  SUSPENDU
+  TERMINE
+}
+
+enum TypeTransaction {
+  RESERVATION
+  VENTE
+}
+
+enum StatutTransaction {
+  EN_ATTENTE
+  VALIDEE
+  ANNULEE
+}
