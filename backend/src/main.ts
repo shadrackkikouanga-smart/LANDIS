@@ -17,12 +17,12 @@ async function bootstrap() {
 
   // Autoriser le frontend Next.js
   app.enableCors({
-
-    origin: 'http://localhost:3001',
-
-    credentials: true,
-
-  });
+  origin: [
+    'http://localhost:3001',
+    'https://landis-9ksrqk33u-landis1.vercel.app',
+  ],
+  credentials: true,
+});
 
 
 
