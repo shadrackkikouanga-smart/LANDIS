@@ -5,6 +5,25 @@
   sont transférées dans BlocVoie avant leur suppression.
 */
 
+-- 0. Créer l'enum PositionVoie s'il n'existe pas encore
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type
+        WHERE typname = 'PositionVoie'
+    ) THEN
+        CREATE TYPE "PositionVoie" AS ENUM (
+            'HAUT',
+            'BAS',
+            'GAUCHE',
+            'DROITE',
+            'AUTRE'
+        );
+    END IF;
+END
+$$;
+
 -- 1. Créer la nouvelle table de liaison
 CREATE TABLE "BlocVoie" (
     "id" SERIAL NOT NULL,
