@@ -1,38 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-
 import { useParams, useRouter } from "next/navigation";
-
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import BlocForm from "@/components/blocs/BlocForm";
-
-import {
-  getBloc,
-  getTerrains,
-  Bloc,
-  Terrain,
-} from "@/services/blocs";
+import { getBloc, Bloc } from "@/services/blocs";
 
 export default function EditBlocPage() {
   const params = useParams();
   const router = useRouter();
 
-  const id = Number(params.id);
-
-  const [bloc, setBloc] =
-    useState<Bloc | null>(null);
-
-  const [terrains, setTerrains] =
-    useState<Terrain[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
+  const [bloc, setBloc] = useState<Bloc | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function loadData() {
@@ -40,117 +21,55 @@ export default function EditBlocPage() {
         setLoading(true);
         setError("");
 
-        const [
-          blocData,
-          terrainsData,
-        ] = await Promise.all([
-          getBloc(id),
-          getTerrains(),
-        ]);
-
-        setBloc(blocData);
-        setTerrains(terrainsData);
-      } catch (error) {
-        console.error(
-          "Erreur chargement bloc :",
-          error,
-        );
-
+        if (params?.id) {
+          const blocData = await getBloc(Number(params.id));
+          setBloc(blocData);
+        }
+      } catch (err) {
+        console.error("Erreur chargement édition :", err);
         setError(
-          "Impossible de charger les informations du bloc.",
+          "Impossible de charger les données pour la modification."
         );
       } finally {
         setLoading(false);
       }
     }
 
-    if (id) {
-      loadData();
-    }
-  }, [id]);
+    loadData();
+  }, [params?.id]);
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         <div className="h-8 w-48 animate-pulse rounded-lg bg-slate-200" />
-
         <div className="h-96 animate-pulse rounded-2xl bg-white" />
       </div>
     );
   }
 
-  if (error || !bloc) {
-    return (
-      <div className="space-y-6">
-
-        <Link
-          href="/blocs"
-          className="
-            inline-flex
-            items-center
-            gap-2
-            text-sm
-            font-medium
-            text-slate-600
-            hover:text-slate-900
-          "
-        >
-          <ArrowLeft size={17} />
-
-          Retour aux blocs
-        </Link>
-
-        <div
-          className="
-            rounded-2xl
-            border
-            border-red-200
-            bg-red-50
-            p-8
-            text-sm
-            text-red-700
-          "
-        >
-          {error ||
-            "Bloc introuvable."}
-        </div>
-
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-8">
-
+    <div className="space-y-8 p-6">
       <Link
-        href={`/blocs/${id}`}
-        className="
-          inline-flex
-          items-center
-          gap-2
-          text-sm
-          font-medium
-          text-slate-600
-          hover:text-slate-900
-        "
+        href="/blocs"
+        className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
       >
         <ArrowLeft size={17} />
-
-        Retour au bloc
+        Retour aux blocs
       </Link>
 
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-      <BlocForm
-        terrains={terrains}
-        bloc={bloc}
-        onCancel={() =>
-          router.push(`/blocs/${id}`)
-        }
-        onSuccess={() =>
-          router.push(`/blocs/${id}`)
-        }
-      />
-
+      {bloc && (
+        <BlocForm
+          bloc={bloc}
+          onCancel={() => router.push("/blocs")}
+          onSuccess={() => router.push("/blocs")}
+        />
+      )}
     </div>
   );
 }

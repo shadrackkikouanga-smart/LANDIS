@@ -1,11 +1,11 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
+  Controller,
+  Delete,
+  Get,
   Param,
   Patch,
-  Delete,
+  Post,
 } from '@nestjs/common';
 
 import { BlocsService } from './blocs.service';
@@ -19,8 +19,6 @@ export class BlocsController {
     private readonly blocsService: BlocsService,
   ) {}
 
-
-
   @Post()
   create(
     @Body() createBlocDto: CreateBlocDto,
@@ -30,9 +28,6 @@ export class BlocsController {
     );
   }
 
-
-
-  // Création d'un bloc avec génération automatique des parcelles
   @Post('complet')
   createBlocComplet(
     @Body() createBlocDto: CreateBlocDto,
@@ -42,14 +37,10 @@ export class BlocsController {
     );
   }
 
-
-
   @Get()
   findAll() {
     return this.blocsService.findAll();
   }
-
-
 
   @Get(':id')
   findOne(
@@ -60,8 +51,6 @@ export class BlocsController {
     );
   }
 
-
-
   @Get(':id/statistiques')
   statistiques(
     @Param('id') id: string,
@@ -71,20 +60,17 @@ export class BlocsController {
     );
   }
 
-
-
   @Patch(':id')
   update(
     @Param('id') id: string,
-    @Body() updateBlocDto: UpdateBlocDto,
+    @Body()
+    updateBlocDto: UpdateBlocDto,
   ) {
     return this.blocsService.update(
       Number(id),
       updateBlocDto,
     );
   }
-
-
 
   @Delete(':id')
   remove(
@@ -95,45 +81,51 @@ export class BlocsController {
     );
   }
 
-
-
-  @Patch(':id/ajouter-parcelles/:nombre')
+  @Patch(
+    ':id/ajouter-parcelles/:nombre',
+  )
   ajouterParcelles(
     @Param('id') id: string,
     @Param('nombre') nombre: string,
   ) {
     return this.blocsService.ajouterParcelles(
       Number(id),
-      Number(nombre),
+      {
+        quantite: Number(nombre),
+      },
     );
   }
 
-
-
-  @Patch(':id/reduire-parcelles/:nombre')
+  @Patch(
+    ':id/reduire-parcelles/:nombre',
+  )
   reduireParcelles(
     @Param('id') id: string,
     @Param('nombre') nombre: string,
   ) {
     return this.blocsService.reduireParcelles(
       Number(id),
-      Number(nombre),
+      {
+        quantite: Number(nombre),
+      },
     );
   }
 
   @Patch(':id/coordinates')
-updateCoordinates(
-  @Param('id') id: string,
-  @Body()
-  body: {
-    latitude: number;
-    longitude: number;
-  },
-) {
-  return this.blocsService.updateCoordinates(
-    Number(id),
-    body.latitude,
-    body.longitude,
-  );
-}
+  updateCoordinates(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      latitude: number;
+      longitude: number;
+    },
+  ) {
+    return this.blocsService.updateCoordinates(
+      Number(id),
+      {
+        latitude: body.latitude,
+        longitude: body.longitude,
+      },
+    );
+  }
 }

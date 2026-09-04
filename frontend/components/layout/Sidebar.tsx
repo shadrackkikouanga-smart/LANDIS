@@ -9,6 +9,8 @@ import {
   Map,
   Blocks,
   LandPlot,
+  Layers,
+  Route,
   Users,
   UserRoundCheck,
   Handshake,
@@ -16,6 +18,8 @@ import {
   FileText,
   Settings,
   LogOut,
+  UsersRound,
+  ClipboardList,
 } from "lucide-react";
 
 const menuSections = [
@@ -44,6 +48,21 @@ const menuSections = [
         icon: Map,
       },
       {
+        name: "Sections",
+        href: "/sections",
+        icon: Layers,
+      },
+      {
+        name: "Familles foncières",
+        href: "/familles-foncieres",
+        icon: UsersRound,
+      },
+      {
+        name: "Recensements",
+        href: "/recensements",
+        icon: ClipboardList,
+      },
+      {
         name: "Blocs",
         href: "/blocs",
         icon: Blocks,
@@ -52,6 +71,11 @@ const menuSections = [
         name: "Parcelles",
         href: "/parcelles",
         icon: LandPlot,
+      },
+      {
+        name: "Voies",
+        href: "/voies",
+        icon: Route,
       },
       {
         name: "Carte",
@@ -147,7 +171,7 @@ export default function Sidebar() {
               text-slate-900
             "
           >
-            LANDIS
+            NIANI'S IMO
           </h1>
 
           <p
@@ -173,10 +197,8 @@ export default function Sidebar() {
         "
       >
         <div className="space-y-7">
-
           {menuSections.map((section) => (
             <div key={section.title}>
-
               <p
                 className="
                   mb-2
@@ -192,7 +214,6 @@ export default function Sidebar() {
               </p>
 
               <div className="space-y-1">
-
                 {section.items.map((item) => {
                   const Icon = item.icon;
 
@@ -234,11 +255,9 @@ export default function Sidebar() {
                     </Link>
                   );
                 })}
-
               </div>
             </div>
           ))}
-
         </div>
       </nav>
 

@@ -58,3 +58,9 @@ Thumbs.db
 # Fichiers temporaires
 *.tmp
 *.temp
+
+# Documents générés localement
+backend/documents/contrats/
+
+# Fichiers de recherche temporaires
+backend/recherche-partie*.txt

@@ -16,6 +16,10 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:3000";
 
+/* =========================================================
+   TYPES
+========================================================= */
+
 interface Terrain {
   id: number;
   reference: string;
@@ -23,8 +27,8 @@ interface Terrain {
   superficie: number;
   localisation?: string | null;
   statut: string;
-  latitude: number | null;
-  longitude: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
   projectId: number;
 }
 
@@ -34,8 +38,8 @@ interface Bloc {
   nombreParcelles: number;
   terrainId: number;
   superficie: number;
-  latitude: number | null;
-  longitude: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface Parcelle {
@@ -44,8 +48,8 @@ interface Parcelle {
   numero: string;
   superficie: number;
   statut: string;
-  latitude: number | null;
-  longitude: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
 
   bloc?: {
     id: number;
@@ -63,9 +67,78 @@ interface Parcelle {
   } | null;
 }
 
-/*
- * Permet de déplacer automatiquement la carte.
+interface Coordonnees {
+  latitude: number;
+  longitude: number;
+}
+
+/* =========================================================
+   VALIDATION DES COORDONNÉES
+========================================================= */
+
+function hasValidCoordinates(
+  latitude: number | null | undefined,
+  longitude: number | null | undefined,
+): latitude is number {
+  return (
+    typeof latitude === "number" &&
+    Number.isFinite(latitude) &&
+    typeof longitude === "number" &&
+    Number.isFinite(longitude)
+  );
+}
+
+function hasValidGeoCoordinates(
+  latitude: number | null | undefined,
+  longitude: number | null | undefined,
+): boolean {
+  return (
+    typeof latitude === "number" &&
+    Number.isFinite(latitude) &&
+    typeof longitude === "number" &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
+
+/**
+ * Retourne des coordonnées garanties comme étant
+ * valides pour Leaflet.
+ *
+ * Cette fonction permet également à TypeScript
+ * de comprendre que les deux valeurs sont
+ * obligatoirement des nombres après vérification.
  */
+function getValidGeoCoordinates(
+  latitude: number | null | undefined,
+  longitude: number | null | undefined,
+): Coordonnees | null {
+  if (
+    typeof latitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    typeof longitude !== "number" ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return null;
+  }
+
+  return {
+    latitude,
+    longitude,
+  };
+}
+
+/* =========================================================
+   CENTRAGE AUTOMATIQUE DE LA CARTE
+========================================================= */
+
 function MapCenter({
   latitude,
   longitude,
@@ -78,6 +151,15 @@ function MapCenter({
   const map = useMap();
 
   useEffect(() => {
+    if (
+      !hasValidGeoCoordinates(
+        latitude,
+        longitude,
+      )
+    ) {
+      return;
+    }
+
     map.flyTo(
       [latitude, longitude],
       zoom,
@@ -95,10 +177,14 @@ function MapCenter({
   return null;
 }
 
+/* =========================================================
+   COMPOSANT PRINCIPAL
+========================================================= */
+
 export default function LandisMap() {
-  // ============================
+  // ========================================================
   // DONNÉES
-  // ============================
+  // ========================================================
 
   const [terrains, setTerrains] =
     useState<Terrain[]>([]);
@@ -109,9 +195,9 @@ export default function LandisMap() {
   const [parcelles, setParcelles] =
     useState<Parcelle[]>([]);
 
-  // ============================
+  // ========================================================
   // CHARGEMENT
-  // ============================
+  // ========================================================
 
   const [loading, setLoading] =
     useState(true);
@@ -119,9 +205,9 @@ export default function LandisMap() {
   const [error, setError] =
     useState("");
 
-  // ============================
+  // ========================================================
   // RECHERCHE
-  // ============================
+  // ========================================================
 
   const [searchValue, setSearchValue] =
     useState("");
@@ -139,14 +225,11 @@ export default function LandisMap() {
   const [
     searchedParcelleCenter,
     setSearchedParcelleCenter,
-  ] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
+  ] = useState<Coordonnees | null>(null);
 
-  // ============================
+  // ========================================================
   // CALQUES
-  // ============================
+  // ========================================================
 
   const [showTerrains, setShowTerrains] =
     useState(true);
@@ -160,9 +243,9 @@ export default function LandisMap() {
   const [showLayers, setShowLayers] =
     useState(false);
 
-  // ============================
+  // ========================================================
   // BLOC SÉLECTIONNÉ
-  // ============================
+  // ========================================================
 
   const [selectedBlocId, setSelectedBlocId] =
     useState<number | null>(null);
@@ -170,14 +253,11 @@ export default function LandisMap() {
   const [
     selectedBlocCenter,
     setSelectedBlocCenter,
-  ] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
+  ] = useState<Coordonnees | null>(null);
 
-  // ============================
+  // ========================================================
   // CHARGEMENT DES DONNÉES
-  // ============================
+  // ========================================================
 
   useEffect(() => {
     async function loadData() {
@@ -222,9 +302,23 @@ export default function LandisMap() {
         const parcellesData =
           await parcellesResponse.json();
 
-        setTerrains(terrainsData);
-        setBlocs(blocsData);
-        setParcelles(parcellesData);
+        setTerrains(
+          Array.isArray(terrainsData)
+            ? terrainsData
+            : [],
+        );
+
+        setBlocs(
+          Array.isArray(blocsData)
+            ? blocsData
+            : [],
+        );
+
+        setParcelles(
+          Array.isArray(parcellesData)
+            ? parcellesData
+            : [],
+        );
       } catch (err) {
         console.error(
           "Erreur chargement carte :",
@@ -242,34 +336,37 @@ export default function LandisMap() {
     loadData();
   }, []);
 
-  // ============================
-  // COORDONNÉES
-  // ============================
+  // ========================================================
+  // COORDONNÉES VALIDES
+  // ========================================================
 
   const terrainsAvecCoordonnees =
-    terrains.filter(
-      (terrain) =>
-        terrain.latitude !== null &&
-        terrain.longitude !== null,
+    terrains.filter((terrain) =>
+      hasValidGeoCoordinates(
+        terrain.latitude,
+        terrain.longitude,
+      ),
     );
 
   const blocsAvecCoordonnees =
-    blocs.filter(
-      (bloc) =>
-        bloc.latitude !== null &&
-        bloc.longitude !== null,
+    blocs.filter((bloc) =>
+      hasValidGeoCoordinates(
+        bloc.latitude,
+        bloc.longitude,
+      ),
     );
 
   const parcellesAvecCoordonnees =
-    parcelles.filter(
-      (parcelle) =>
-        parcelle.latitude !== null &&
-        parcelle.longitude !== null,
+    parcelles.filter((parcelle) =>
+      hasValidGeoCoordinates(
+        parcelle.latitude,
+        parcelle.longitude,
+      ),
     );
 
-  // ============================
+  // ========================================================
   // RECHERCHE PARCELLE
-  // ============================
+  // ========================================================
 
   function handleSearch() {
     const recherche =
@@ -294,7 +391,6 @@ export default function LandisMap() {
             .toLowerCase() === recherche,
       );
 
-    // Parcelle inexistante
     if (!parcelleTrouvee) {
       setSearchMessage(
         `La parcelle "${searchValue}" n'existe pas dans LANDIS.`,
@@ -307,13 +403,15 @@ export default function LandisMap() {
       return;
     }
 
-    // Parcelle existante mais sans coordonnées
-    if (
-      parcelleTrouvee.latitude === null ||
-      parcelleTrouvee.longitude === null
-    ) {
+    const coordinates =
+      getValidGeoCoordinates(
+        parcelleTrouvee.latitude,
+        parcelleTrouvee.longitude,
+      );
+
+    if (!coordinates) {
       setSearchMessage(
-        `La parcelle ${parcelleTrouvee.reference} existe, mais elle ne possède pas encore de coordonnées géographiques.`,
+        `La parcelle ${parcelleTrouvee.reference} existe, mais elle ne possède pas encore de coordonnées géographiques valides.`,
       );
 
       setSearchMessageType("warning");
@@ -323,26 +421,23 @@ export default function LandisMap() {
       return;
     }
 
-    // Parcelle trouvée avec coordonnées
     setSearchMessage(
       `Parcelle ${parcelleTrouvee.reference} trouvée.`,
     );
 
     setSearchMessageType("success");
 
-    setSearchedParcelleCenter({
-      latitude: parcelleTrouvee.latitude,
-      longitude: parcelleTrouvee.longitude,
-    });
+    setSearchedParcelleCenter(
+      coordinates,
+    );
 
-    // On annule une éventuelle sélection de bloc
     setSelectedBlocId(null);
     setSelectedBlocCenter(null);
   }
 
-  // ============================
+  // ========================================================
   // RECHERCHE AVEC ENTER
-  // ============================
+  // ========================================================
 
   function handleSearchKeyDown(
     event: React.KeyboardEvent<HTMLInputElement>,
@@ -352,9 +447,9 @@ export default function LandisMap() {
     }
   }
 
-  // ============================
+  // ========================================================
   // BLOC SÉLECTIONNÉ
-  // ============================
+  // ========================================================
 
   const blocSelectionne =
     selectedBlocId !== null
@@ -373,9 +468,9 @@ export default function LandisMap() {
         )
       : [];
 
-  // ============================
+  // ========================================================
   // SÉLECTION DU BLOC
-  // ============================
+  // ========================================================
 
   function handleSelectBloc(
     bloc: Bloc,
@@ -387,44 +482,41 @@ export default function LandisMap() {
 
     setSearchedParcelleCenter(null);
 
-    if (
-      bloc.latitude !== null &&
-      bloc.longitude !== null
-    ) {
-      setSelectedBlocCenter({
-        latitude: bloc.latitude,
-        longitude: bloc.longitude,
-      });
+    const coordinates =
+      getValidGeoCoordinates(
+        bloc.latitude,
+        bloc.longitude,
+      );
+
+    if (coordinates) {
+      setSelectedBlocCenter(
+        coordinates,
+      );
+    } else {
+      setSelectedBlocCenter(null);
     }
   }
 
-  // ============================
+  // ========================================================
   // ANNULER SÉLECTION BLOC
-  // ============================
+  // ========================================================
 
   function handleClearBlocSelection() {
     setSelectedBlocId(null);
     setSelectedBlocCenter(null);
   }
 
+  // ========================================================
+  // RENDU
+  // ========================================================
+
   return (
     <div className="space-y-3">
-
-      {/* ============================
+      {/* ==================================================
           INFORMATIONS
-          ============================ */}
+      ================================================== */}
 
-      <div
-        className="
-          rounded-lg
-          border
-          border-slate-200
-          bg-white
-          px-4
-          py-3
-          text-sm
-        "
-      >
+      <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
         {loading && (
           <p className="text-slate-500">
             Chargement des données cartographiques...
@@ -439,7 +531,6 @@ export default function LandisMap() {
 
         {!loading && !error && (
           <div className="flex flex-wrap gap-x-6 gap-y-2">
-
             <span className="text-slate-600">
               <strong className="text-slate-900">
                 {terrainsAvecCoordonnees.length}
@@ -481,45 +572,17 @@ export default function LandisMap() {
                 ? "s"
                 : ""}
             </span>
-
           </div>
         )}
       </div>
 
-      {/* ============================
+      {/* ==================================================
           BARRE RECHERCHE + CALQUES
-          ============================ */}
+      ================================================== */}
 
       <div className="relative">
-
-        <div
-          className="
-            flex
-            flex-col
-            gap-3
-            rounded-xl
-            border
-            border-slate-200
-            bg-white
-            p-4
-            shadow-sm
-            md:flex-row
-            md:items-center
-            md:justify-between
-          "
-        >
-
-          {/* Recherche */}
-
-          <div
-            className="
-              flex
-              w-full
-              gap-2
-              md:max-w-xl
-            "
-          >
-
+        <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
+          <div className="flex w-full gap-2 md:max-w-xl">
             <input
               type="text"
               value={searchValue}
@@ -532,43 +595,17 @@ export default function LandisMap() {
                 handleSearchKeyDown
               }
               placeholder="Rechercher une parcelle par son numéro ou sa référence..."
-              className="
-                w-full
-                rounded-lg
-                border
-                border-slate-200
-                bg-slate-50
-                px-4
-                py-2.5
-                text-sm
-                outline-none
-                transition
-                focus:border-slate-400
-                focus:bg-white
-              "
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white"
             />
 
             <button
               type="button"
               onClick={handleSearch}
-              className="
-                rounded-lg
-                bg-slate-900
-                px-5
-                py-2.5
-                text-sm
-                font-medium
-                text-white
-                transition
-                hover:bg-slate-800
-              "
+              className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
             >
               Rechercher
             </button>
-
           </div>
-
-          {/* Calques */}
 
           <button
             type="button"
@@ -577,98 +614,39 @@ export default function LandisMap() {
                 (value) => !value,
               )
             }
-            className="
-              flex
-              items-center
-              justify-center
-              gap-2
-              rounded-lg
-              border
-              border-slate-200
-              bg-white
-              px-4
-              py-2.5
-              text-sm
-              font-medium
-              text-slate-700
-              shadow-sm
-              transition
-              hover:bg-slate-50
-            "
+            className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
             🗂️ Calques
           </button>
-
         </div>
 
-        {/* ============================
-            MESSAGE RECHERCHE
-            ============================ */}
+        {/* MESSAGE RECHERCHE */}
 
         {searchMessage && (
           <div
-            className={`
-              mt-2
-              rounded-lg
-              border
-              px-4
-              py-3
-              text-sm
-              ${
-                searchMessageType ===
-                "success"
-                  ? "border-green-200 bg-green-50 text-green-800"
-                  : searchMessageType ===
-                    "warning"
-                  ? "border-amber-200 bg-amber-50 text-amber-800"
-                  : "border-red-200 bg-red-50 text-red-800"
-              }
-            `}
+            className={`mt-2 rounded-lg border px-4 py-3 text-sm ${
+              searchMessageType ===
+              "success"
+                ? "border-green-200 bg-green-50 text-green-800"
+                : searchMessageType ===
+                  "warning"
+                ? "border-amber-200 bg-amber-50 text-amber-800"
+                : "border-red-200 bg-red-50 text-red-800"
+            }`}
           >
             {searchMessage}
           </div>
         )}
 
-        {/* ============================
-            PANNEAU CALQUES
-            ============================ */}
+        {/* PANNEAU CALQUES */}
 
         {showLayers && (
-          <div
-            className="
-              absolute
-              right-0
-              top-[76px]
-              z-[1000]
-              w-64
-              rounded-xl
-              border
-              border-slate-200
-              bg-white
-              p-4
-              shadow-lg
-            "
-          >
-
+          <div className="absolute right-0 top-[76px] z-[1000] w-64 rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
             <h3 className="mb-3 text-sm font-semibold text-slate-900">
               Affichage de la carte
             </h3>
 
-            {/* Terrain */}
-
-            <label
-              className="
-                flex
-                cursor-pointer
-                items-center
-                gap-3
-                rounded-lg
-                px-2
-                py-2
-                hover:bg-slate-50
-              "
-            >
-
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50">
               <input
                 type="checkbox"
                 checked={showTerrains}
@@ -685,24 +663,9 @@ export default function LandisMap() {
               <span className="text-sm text-slate-700">
                 Terrains
               </span>
-
             </label>
 
-            {/* Bloc */}
-
-            <label
-              className="
-                flex
-                cursor-pointer
-                items-center
-                gap-3
-                rounded-lg
-                px-2
-                py-2
-                hover:bg-slate-50
-              "
-            >
-
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50">
               <input
                 type="checkbox"
                 checked={showBlocs}
@@ -719,24 +682,9 @@ export default function LandisMap() {
               <span className="text-sm text-slate-700">
                 Blocs
               </span>
-
             </label>
 
-            {/* Parcelles */}
-
-            <label
-              className="
-                flex
-                cursor-pointer
-                items-center
-                gap-3
-                rounded-lg
-                px-2
-                py-2
-                hover:bg-slate-50
-              "
-            >
-
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50">
               <input
                 type="checkbox"
                 checked={showParcelles}
@@ -753,41 +701,19 @@ export default function LandisMap() {
               <span className="text-sm text-slate-700">
                 Parcelles
               </span>
-
             </label>
-
           </div>
         )}
-
       </div>
 
-      {/* ============================
+      {/* ==================================================
           BLOC SÉLECTIONNÉ
-          ============================ */}
+      ================================================== */}
 
       {selectedBlocId !== null &&
         blocSelectionne && (
-          <div
-            className="
-              flex
-              flex-col
-              gap-3
-              rounded-lg
-              border
-              border-yellow-200
-              bg-yellow-50
-              px-4
-              py-3
-              text-sm
-              text-yellow-900
-              md:flex-row
-              md:items-center
-              md:justify-between
-            "
-          >
-
+          <div className="flex flex-col gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 md:flex-row md:items-center md:justify-between">
             <div>
-
               <strong>
                 {blocSelectionne.reference}
               </strong>
@@ -803,7 +729,6 @@ export default function LandisMap() {
                 ? "s"
                 : ""}{" "}
               avec coordonnées
-
             </div>
 
             <button
@@ -811,57 +736,30 @@ export default function LandisMap() {
               onClick={
                 handleClearBlocSelection
               }
-              className="
-                rounded-lg
-                border
-                border-yellow-300
-                bg-white
-                px-3
-                py-2
-                text-xs
-                font-medium
-                text-yellow-900
-                hover:bg-yellow-100
-              "
+              className="rounded-lg border border-yellow-300 bg-white px-3 py-2 text-xs font-medium text-yellow-900 hover:bg-yellow-100"
             >
               Afficher toutes les parcelles
             </button>
-
           </div>
         )}
 
-      {/* ============================
+      {/* ==================================================
           CARTE
-          ============================ */}
+      ================================================== */}
 
-      <div
-        className="
-          h-[600px]
-          w-full
-          overflow-hidden
-          rounded-xl
-          border
-          border-slate-200
-          bg-white
-          shadow-sm
-        "
-      >
-
+      <div className="h-[600px] w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <MapContainer
           center={[-4.7692, 11.8667]}
           zoom={13}
           scrollWheelZoom={true}
           className="h-full w-full"
         >
-
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          {/* ============================
-              CENTRAGE RECHERCHE PARCELLE
-              ============================ */}
+          {/* CENTRAGE RECHERCHE PARCELLE */}
 
           {searchedParcelleCenter && (
             <MapCenter
@@ -875,9 +773,7 @@ export default function LandisMap() {
             />
           )}
 
-          {/* ============================
-              CENTRAGE SUR LE BLOC
-              ============================ */}
+          {/* CENTRAGE SUR LE BLOC */}
 
           {selectedBlocCenter && (
             <MapCenter
@@ -891,92 +787,105 @@ export default function LandisMap() {
             />
           )}
 
-          {/* ============================
+          {/* ==================================================
               TERRAINS
-              ============================ */}
+          ================================================== */}
 
           {showTerrains &&
             terrainsAvecCoordonnees.map(
-              (terrain) => (
-                <CircleMarker
-                  key={`terrain-${terrain.id}`}
-                  center={[
-                    terrain.latitude!,
-                    terrain.longitude!,
-                  ]}
-                  radius={18}
-                  pathOptions={{
-                    fillColor: "#2563eb",
-                    color: "#ffffff",
-                    weight: 3,
-                    fillOpacity: 0.35,
-                  }}
-                >
+              (terrain) => {
+                const coordinates =
+                  getValidGeoCoordinates(
+                    terrain.latitude,
+                    terrain.longitude,
+                  );
 
-                  <Popup>
+                if (!coordinates) {
+                  return null;
+                }
 
-                    <div className="min-w-[240px]">
+                return (
+                  <CircleMarker
+                    key={`terrain-${terrain.id}`}
+                    center={[
+                      coordinates.latitude,
+                      coordinates.longitude,
+                    ]}
+                    radius={18}
+                    pathOptions={{
+                      fillColor: "#2563eb",
+                      color: "#ffffff",
+                      weight: 3,
+                      fillOpacity: 0.35,
+                    }}
+                  >
+                    <Popup>
+                      <div className="min-w-[240px]">
+                        <h3 className="text-base font-bold text-blue-700">
+                          Terrain
+                        </h3>
 
-                      <h3 className="text-base font-bold text-blue-700">
-                        Terrain
-                      </h3>
-
-                      <div className="mt-3 space-y-1.5 text-sm">
-
-                        <p>
-                          <strong>
-                            Référence :
-                          </strong>{" "}
-                          {terrain.reference}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Nom :
-                          </strong>{" "}
-                          {terrain.nom}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Superficie :
-                          </strong>{" "}
-                          {terrain.superficie} m²
-                        </p>
-
-                        {terrain.localisation && (
+                        <div className="mt-3 space-y-1.5 text-sm">
                           <p>
                             <strong>
-                              Localisation :
+                              Référence :
                             </strong>{" "}
-                            {terrain.localisation}
+                            {terrain.reference}
                           </p>
-                        )}
 
-                        <p>
-                          <strong>
-                            Statut :
-                          </strong>{" "}
-                          {terrain.statut}
-                        </p>
+                          <p>
+                            <strong>
+                              Nom :
+                            </strong>{" "}
+                            {terrain.nom}
+                          </p>
 
+                          <p>
+                            <strong>
+                              Superficie :
+                            </strong>{" "}
+                            {terrain.superficie} m²
+                          </p>
+
+                          {terrain.localisation && (
+                            <p>
+                              <strong>
+                                Localisation :
+                              </strong>{" "}
+                              {terrain.localisation}
+                            </p>
+                          )}
+
+                          <p>
+                            <strong>
+                              Statut :
+                            </strong>{" "}
+                            {terrain.statut}
+                          </p>
+                        </div>
                       </div>
-
-                    </div>
-
-                  </Popup>
-
-                </CircleMarker>
-              ),
+                    </Popup>
+                  </CircleMarker>
+                );
+              },
             )}
 
-          {/* ============================
+          {/* ==================================================
               BLOCS
-              ============================ */}
+          ================================================== */}
 
           {showBlocs &&
             blocsAvecCoordonnees.map(
               (bloc) => {
+                const coordinates =
+                  getValidGeoCoordinates(
+                    bloc.latitude,
+                    bloc.longitude,
+                  );
+
+                if (!coordinates) {
+                  return null;
+                }
 
                 const isSelected =
                   selectedBlocId ===
@@ -986,8 +895,8 @@ export default function LandisMap() {
                   <CircleMarker
                     key={`bloc-${bloc.id}`}
                     center={[
-                      bloc.latitude!,
-                      bloc.longitude!,
+                      coordinates.latitude,
+                      coordinates.longitude,
                     ]}
                     radius={
                       isSelected
@@ -1013,17 +922,13 @@ export default function LandisMap() {
                           : 0.75,
                     }}
                   >
-
                     <Popup>
-
                       <div className="min-w-[240px]">
-
                         <h3 className="text-base font-bold text-yellow-700">
                           Bloc
                         </h3>
 
                         <div className="mt-3 space-y-1.5 text-sm">
-
                           <p>
                             <strong>
                               Référence :
@@ -1051,7 +956,6 @@ export default function LandisMap() {
                             </strong>{" "}
                             {bloc.terrainId}
                           </p>
-
                         </div>
 
                         <button
@@ -1061,39 +965,33 @@ export default function LandisMap() {
                               bloc,
                             )
                           }
-                          className="
-                            mt-4
-                            w-full
-                            rounded-lg
-                            bg-slate-900
-                            px-3
-                            py-2
-                            text-sm
-                            font-medium
-                            text-white
-                            transition
-                            hover:bg-slate-800
-                          "
+                          className="mt-4 w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
                         >
                           Voir les parcelles
                         </button>
-
                       </div>
-
                     </Popup>
-
                   </CircleMarker>
                 );
               },
             )}
 
-          {/* ============================
+          {/* ==================================================
               PARCELLES
-              ============================ */}
+          ================================================== */}
 
           {showParcelles &&
             parcellesAvecCoordonnees.map(
               (parcelle) => {
+                const coordinates =
+                  getValidGeoCoordinates(
+                    parcelle.latitude,
+                    parcelle.longitude,
+                  );
+
+                if (!coordinates) {
+                  return null;
+                }
 
                 const isSelected =
                   selectedBlocId !== null &&
@@ -1128,8 +1026,8 @@ export default function LandisMap() {
                   <CircleMarker
                     key={`parcelle-${parcelle.id}`}
                     center={[
-                      parcelle.latitude!,
-                      parcelle.longitude!,
+                      coordinates.latitude,
+                      coordinates.longitude,
                     ]}
                     radius={
                       isSelected
@@ -1155,17 +1053,13 @@ export default function LandisMap() {
                           : 0.9,
                     }}
                   >
-
                     <Popup>
-
                       <div className="min-w-[220px]">
-
                         <h3 className="text-base font-bold text-slate-900">
                           {parcelle.reference}
                         </h3>
 
                         <div className="mt-3 space-y-1.5 text-sm">
-
                           <p>
                             <strong>
                               Numéro :
@@ -1216,25 +1110,19 @@ export default function LandisMap() {
                               }
                             </p>
                           )}
-
                         </div>
-
                       </div>
-
                     </Popup>
-
                   </CircleMarker>
                 );
               },
             )}
-
         </MapContainer>
-
       </div>
 
-      {/* ============================
-          AVERTISSEMENT
-          ============================ */}
+      {/* ==================================================
+          AVERTISSEMENT COORDONNÉES
+      ================================================== */}
 
       {!loading &&
         !error &&
@@ -1245,27 +1133,13 @@ export default function LandisMap() {
           0 &&
         parcellesAvecCoordonnees.length ===
           0 && (
-
-          <div
-            className="
-              rounded-lg
-              border
-              border-amber-200
-              bg-amber-50
-              px-4
-              py-3
-              text-sm
-              text-amber-800
-            "
-          >
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             Les terrains, blocs et parcelles
             existent dans LANDIS, mais aucun
             ne possède encore de coordonnées
-            géographiques.
+            géographiques valides.
           </div>
-
         )}
-
     </div>
   );
 }

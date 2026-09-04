@@ -20,7 +20,7 @@ type Settings = {
 const defaultSettings: Settings = {
   theme: "light",
   primaryColor: "slate",
-  organizationName: "LANDIS",
+  organizationName: "NIANI'S IMO",
 };
 
 async function settingsRequest(
@@ -212,7 +212,7 @@ export default function AppearancePage() {
 
             <p className="mt-1 text-sm text-slate-500">
               Personnalisez l'apparence de
-              votre plateforme LANDIS.
+              votre plateforme NIANI'S IMO.
             </p>
           </div>
         </div>
@@ -240,7 +240,7 @@ export default function AppearancePage() {
 
           <p className="mt-1 text-sm text-slate-500">
             Choisissez le mode d'affichage
-            de LANDIS.
+            de NIANI'S IMO.
           </p>
         </div>
 

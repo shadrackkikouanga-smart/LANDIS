@@ -191,7 +191,7 @@ export default function DocumentsSettingsPage() {
           <p className="mt-2 text-slate-500">
             Configurez les paramètres
             utilisés pour les documents
-            et contrats de LANDIS.
+            et contrats de NIANI'S IMO.
           </p>
 
         </div>
@@ -257,7 +257,7 @@ export default function DocumentsSettingsPage() {
 
           <p className="mt-1 text-sm text-slate-500">
             Informations qui pourront être
-            affichées sur les documents LANDIS.
+            affichées sur les documents NIANI'S IMO.
           </p>
 
         </div>

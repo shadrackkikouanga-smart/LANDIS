@@ -211,7 +211,7 @@ export default function SecuritySettingsPage() {
             text-slate-500
           ">
             Configurez les règles de sécurité
-            de la plateforme LANDIS.
+            de la plateforme NIANI'S IMO.
           </p>
         </div>
 
@@ -571,7 +571,7 @@ export default function SecuritySettingsPage() {
                 text-sm
                 text-slate-500
               ">
-                Renforcez l'accès à LANDIS.
+                Renforcez l'accès à NIANI'S IMO.
               </p>
             </div>
 
@@ -738,7 +738,7 @@ export default function SecuritySettingsPage() {
             ">
               Ces paramètres sont enregistrés
               dans le système de configuration
-              LANDIS et pourront ensuite être
+              NIANI'S IMO et pourront ensuite être
               utilisés par les mécanismes
               d'authentification et de sécurité
               du backend.

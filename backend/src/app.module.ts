@@ -17,15 +17,17 @@ import { DocumentsModule } from './documents/documents.module';
 import { TerrainsModule } from './terrains/terrains.module';
 import { BlocsModule } from './blocs/blocs.module';
 import { DashboardModule } from './dashboard/dashboard.module';
-import { SettingsModule } from "./settings/settings.module";
+import { SettingsModule } from './settings/settings.module';
 import { OrganizationModule } from './organization/organization.module';
-import { HistoriqueModule } from "./historique/historique.module";
-
+import { HistoriqueModule } from './historique/historique.module';
+import { SectionsModule } from './sections/sections.module';
+import { VoiesModule } from './voies/voies.module';
+import { FamillesFoncieresModule } from './familles-foncieres/familles-foncieres.module';
+import { RecensementsModule } from './recensements/recensements.module';
+import { RechercheModule } from './recherche/recherche.module';
 
 @Module({
-
   imports: [
-
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -59,19 +61,26 @@ import { HistoriqueModule } from "./historique/historique.module";
     SettingsModule,
 
     OrganizationModule,
+
     HistoriqueModule,
 
-  ],
+    SectionsModule,
 
+    VoiesModule,
+
+    FamillesFoncieresModule,
+
+    RecensementsModule,
+
+    RechercheModule,
+  ],
 
   controllers: [
     AppController,
   ],
 
-
   providers: [
     AppService,
   ],
-
 })
 export class AppModule {}

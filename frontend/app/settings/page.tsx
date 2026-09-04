@@ -25,7 +25,7 @@ const settings = [
   {
     title: "Apparence",
     description:
-      "Configurer le thème et l'apparence de LANDIS.",
+      "Configurer le thème et l'apparence de NIANI'S IMO.",
     href: "/settings/appearance",
     icon: Palette,
   },
@@ -73,7 +73,7 @@ const settings = [
   {
     title: "Historique",
     description:
-      "Consulter les actions effectuées dans LANDIS.",
+      "Consulter les actions effectuées dans NIANI'S IMO.",
     href: "/settings/history",
     icon: History,
   },
@@ -89,7 +89,7 @@ export default function SettingsPage() {
 
         <p className="mt-2 text-slate-500">
           Configurez et administrez la
-          plateforme LANDIS.
+          plateforme NIANI'S IMO.
         </p>
       </div>
 

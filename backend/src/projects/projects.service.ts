@@ -76,17 +76,26 @@ export class ProjectsService {
           id,
         },
 
+        // ADAPTATION PRISMA : Inclusion des sections pour atteindre les blocs
         include: {
 
           terrains: {
 
             include: {
 
-              blocs: {
+              sections: {
 
                 include: {
 
-                  parcelles: true,
+                  blocs: {
+
+                    include: {
+
+                      parcelles: true,
+
+                    },
+
+                  },
 
                 },
 
@@ -123,39 +132,29 @@ export class ProjectsService {
       nombreTerrainsReels;
 
 
+    // ADAPTATION DES CALCULS POUR TRAVERSER LES SECTIONS ET EXTRAIRE LES BLOCS
     const nombreBlocsReels =
       project.terrains.reduce(
-
         (total, terrain) =>
-
-          total + terrain.blocs.length,
-
+          total + (terrain.sections || []).reduce(
+            (sectionTotal, section) => sectionTotal + (section.blocs || []).length,
+            0
+          ),
         0,
-
       );
 
 
     const nombreBlocsDeclares =
       project.terrains.reduce(
-
         (total, terrain) =>
-
-          total +
-
-          terrain.blocs.reduce(
-
-            (blocTotal, bloc) =>
-
-              blocTotal +
-              bloc.nombreParcelles * 0 +
-              1,
-
-            0,
-
+          total + (terrain.sections || []).reduce(
+            (sectionTotal, section) => sectionTotal + (section.blocs || []).reduce(
+              (blocTotal, bloc) => blocTotal + bloc.nombreParcelles * 0 + 1,
+              0
+            ),
+            0
           ),
-
         0,
-
       );
 
 
@@ -166,42 +165,28 @@ export class ProjectsService {
 
     const nombreParcellesDeclarees =
       project.terrains.reduce(
-
         (total, terrain) =>
-
-          total +
-
-          terrain.blocs.reduce(
-
-            (blocTotal, bloc) =>
-
-              blocTotal +
-              bloc.nombreParcelles,
-
-            0,
-
+          total + (terrain.sections || []).reduce(
+            (sectionTotal, section) => sectionTotal + (section.blocs || []).reduce(
+              (blocTotal, bloc) => blocTotal + bloc.nombreParcelles,
+              0
+            ),
+            0
           ),
-
         0,
-
       );
 
 
     const parcelles =
       project.terrains.flatMap(
-
         (terrain) =>
-
-          terrain.blocs.flatMap(
-
-            (bloc) =>
-              bloc.parcelles,
-
+          (terrain.sections || []).flatMap(
+            (section) =>
+              (section.blocs || []).flatMap(
+                (bloc) => bloc.parcelles || []
+              ),
           ),
-
       );
-
-
     const nombreParcellesReelles =
       parcelles.length;
 
@@ -230,26 +215,19 @@ export class ProjectsService {
       project.area;
 
 
+    // ADAPTATION DU CALCUL DE SURFACE POUR INCLURE LES SECTIONS INTERMÉDIAIRES
     const surfaceLotie =
       project.terrains.reduce(
-
         (total, terrain) =>
-
-          total +
-
-          terrain.blocs.reduce(
-
-            (blocTotal, bloc) =>
-
-              blocTotal +
-              bloc.superficie,
-
-            0,
-
+          total + (terrain.sections || []).reduce(
+            (sectionTotal, section) =>
+              sectionTotal + (section.blocs || []).reduce(
+                (blocTotal, bloc) => blocTotal + bloc.superficie,
+                0
+              ),
+            0
           ),
-
         0,
-
       );
 
 

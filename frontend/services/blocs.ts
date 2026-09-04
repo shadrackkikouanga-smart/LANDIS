@@ -1,3 +1,9 @@
+import api from "@/lib/api";
+
+/* =========================================================
+   TYPES
+========================================================= */
+
 export interface Terrain {
   id: number;
   reference: string;
@@ -16,260 +22,260 @@ export interface Parcelle {
   proprietaireId?: number | null;
 }
 
-export interface Bloc {
+/* =========================================================
+   VOIES
+========================================================= */
+
+export type PositionVoie =
+  | "HAUT"
+  | "BAS"
+  | "GAUCHE"
+  | "DROITE"
+  | "AUTRE";
+
+export type TypeVoie =
+  | "AVENUE"
+  | "RUELLE"
+  | "RUE"
+  | "AUTRE";
+
+export interface Voie {
   id: number;
   reference: string;
+  type: TypeVoie;
+  largeur: number;
+  longueur: number;
   superficie: number;
-  nombreParcelles: number;
   terrainId: number;
-  terrain?: Terrain;
-  parcelles?: Parcelle[];
 
-  statistiques?: BlocStatistiques;
+  terrain?: {
+    id: number;
+    reference: string;
+    nom?: string;
+  };
 }
+
+export interface BlocVoie {
+  id: number;
+  blocId: number;
+  voieId: number;
+  position: PositionVoie;
+
+  voie: Voie;
+
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/* =========================================================
+   STATISTIQUES
+========================================================= */
 
 export interface BlocStatistiques {
   nombreParcellesDeclarees: number;
   nombreParcellesReelles: number;
   ecartParcelles: number;
+
   etatBloc: string;
+
   parcellesDisponibles: number;
   parcellesAttribuees: number;
+
   surfaceTotaleBloc: number;
   surfaceOccupee: number;
   surfaceDisponible: number;
   tauxOccupation: number;
+
+  nombreVoies?: number;
+  nombreVoiesPrincipales?: number;
+  superficieVoies?: number;
+  voiesManquantes?: PositionVoie[];
+  quadrillageComplet?: boolean;
 }
+
+/* =========================================================
+   BLOC
+========================================================= */
+
+export interface Bloc {
+  id: number;
+  reference: string;
+  superficie: number;
+  nombreParcelles: number;
+
+  sectionId: number;
+  terrainId?: number;
+
+  terrain?: Terrain;
+
+  parcelles?: Parcelle[];
+
+  statut: "EN_COURS" | "TERMINE";
+
+  statistiques?: BlocStatistiques;
+
+  /*
+   * Anciennes propriétés conservées temporairement
+   * afin de ne pas casser le formulaire existant.
+   *
+   * Le backend actuel utilise désormais bloc.voies.
+   */
+  voieHautType: string;
+  voieHautLargeur: number;
+
+  voieBasType: string;
+  voieBasLargeur: number;
+
+  voieGaucheType: string;
+  voieGaucheLargeur: number;
+
+  voieDroiteType: string;
+  voieDroiteLargeur: number;
+
+  /*
+   * Nouveau système de voies partagées.
+   */
+  voies?: BlocVoie[];
+}
+
+/* =========================================================
+   DONNÉES DE CRÉATION
+========================================================= */
 
 export interface CreateBlocData {
   reference: string;
   superficie: number;
   nombreParcelles: number;
-  terrainId: number;
+  sectionId: number;
+
+  voieHautType?: string;
+  voieHautLargeur?: number;
+
+  voieBasType?: string;
+  voieBasLargeur?: number;
+
+  voieGaucheType?: string;
+  voieGaucheLargeur?: number;
+
+  voieDroiteType?: string;
+  voieDroiteLargeur?: number;
 }
+
+/* =========================================================
+   DONNÉES DE MODIFICATION
+========================================================= */
 
 export interface UpdateBlocData {
   reference?: string;
   superficie?: number;
-  terrainId?: number;
+  nombreParcelles?: number;
+  sectionId?: number;
+
+  voieHautType?: string;
+  voieHautLargeur?: number;
+
+  voieBasType?: string;
+  voieBasLargeur?: number;
+
+  voieGaucheType?: string;
+  voieGaucheLargeur?: number;
+
+  voieDroiteType?: string;
+  voieDroiteLargeur?: number;
 }
 
-export interface BlocStatisticsResponse {
-  blocId: number;
-  reference: string;
-  superficie: number;
-  nombreDeclareDansBloc: number;
-  nombreReelParcelles: number;
-  anomalie: {
-    existe: boolean;
-    difference?: number;
-    message?: string;
-  };
-  parcellesAttribuees: number;
-  parcellesDisponibles: number;
-  tauxOccupation: number;
-}
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:3001";
+/* =========================================================
+   RÉCUPÉRATION DES BLOCS
+========================================================= */
 
 export async function getBlocs(): Promise<Bloc[]> {
-  const response = await fetch(
-    `${API_URL}/blocs`,
-    {
-      cache: "no-store",
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Impossible de charger les blocs.",
-    );
-  }
-
-  return response.json();
+  const response = await api.get("/blocs");
+  return response.data;
 }
 
-export async function getBloc(
-  id: number,
-): Promise<Bloc> {
-  const response = await fetch(
-    `${API_URL}/blocs/${id}`,
-    {
-      cache: "no-store",
-    },
-  );
+/* =========================================================
+   RÉCUPÉRER UN BLOC
+========================================================= */
 
-  if (!response.ok) {
-    throw new Error(
-      "Impossible de charger le bloc.",
-    );
-  }
-
-  return response.json();
+export async function getBloc(id: number): Promise<Bloc> {
+  const response = await api.get(`/blocs/${id}`);
+  return response.data;
 }
+
+/* =========================================================
+   STATISTIQUES D'UN BLOC
+========================================================= */
 
 export async function getBlocStatistics(
-  id: number,
-): Promise<BlocStatisticsResponse> {
-  const response = await fetch(
-    `${API_URL}/blocs/${id}/statistiques`,
-    {
-      cache: "no-store",
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Impossible de charger les statistiques du bloc.",
-    );
-  }
-
-  return response.json();
+  id: number
+): Promise<BlocStatistiques> {
+  const response = await api.get(`/blocs/${id}/statistiques`);
+  return response.data;
 }
+
+/* =========================================================
+   CRÉER UN BLOC
+========================================================= */
 
 export async function createBloc(
-  data: CreateBlocData,
+  data: CreateBlocData
 ): Promise<Bloc> {
-  const response = await fetch(
-    `${API_URL}/blocs/complet`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    },
-  );
-
-  if (!response.ok) {
-    const message =
-      await response.text();
-
-    throw new Error(
-      message ||
-        "Impossible de créer le bloc.",
-    );
-  }
-
-  return response.json();
+  const response = await api.post("/blocs/complet", data);
+  return response.data;
 }
+
+/* =========================================================
+   MODIFIER UN BLOC
+========================================================= */
 
 export async function updateBloc(
   id: number,
-  data: UpdateBlocData,
+  data: UpdateBlocData
 ): Promise<Bloc> {
-  const response = await fetch(
-    `${API_URL}/blocs/${id}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    },
-  );
-
-  if (!response.ok) {
-    const message =
-      await response.text();
-
-    throw new Error(
-      message ||
-        "Impossible de modifier le bloc.",
-    );
-  }
-
-  return response.json();
+  const response = await api.patch(`/blocs/${id}`, data);
+  return response.data;
 }
 
-export async function deleteBloc(
-  id: number,
-): Promise<Bloc> {
-  const response = await fetch(
-    `${API_URL}/blocs/${id}`,
-    {
-      method: "DELETE",
-    },
-  );
+/* =========================================================
+   SUPPRIMER UN BLOC
+========================================================= */
 
-  if (!response.ok) {
-    const message =
-      await response.text();
-
-    throw new Error(
-      message ||
-        "Impossible de supprimer le bloc.",
-    );
-  }
-
-  return response.json();
+export async function deleteBloc(id: number): Promise<void> {
+  await api.delete(`/blocs/${id}`);
 }
+
+/* =========================================================
+   AJOUTER DES PARCELLES
+========================================================= */
 
 export async function ajouterParcelles(
-  id: number,
-  nombre: number,
+  blocId: number,
+  quantite: number
 ): Promise<Bloc> {
-  const response = await fetch(
-    `${API_URL}/blocs/${id}/ajouter-parcelles/${nombre}`,
+  const response = await api.post(
+    `/blocs/${blocId}/parcelles/ajouter`,
     {
-      method: "PATCH",
-    },
+      quantite,
+    }
   );
 
-  if (!response.ok) {
-    const message =
-      await response.text();
-
-    throw new Error(
-      message ||
-        "Impossible d'ajouter les parcelles.",
-    );
-  }
-
-  return response.json();
+  return response.data;
 }
+
+/* =========================================================
+   RÉDUIRE DES PARCELLES
+========================================================= */
 
 export async function reduireParcelles(
-  id: number,
-  nombre: number,
+  blocId: number,
+  quantite: number
 ): Promise<Bloc> {
-  const response = await fetch(
-    `${API_URL}/blocs/${id}/reduire-parcelles/${nombre}`,
+  const response = await api.post(
+    `/blocs/${blocId}/parcelles/reduire`,
     {
-      method: "PATCH",
-    },
+      quantite,
+    }
   );
 
-  if (!response.ok) {
-    const message =
-      await response.text();
-
-    throw new Error(
-      message ||
-        "Impossible de réduire les parcelles.",
-    );
-  }
-
-  return response.json();
-}
-
-export async function getTerrains(): Promise<
-  Terrain[]
-> {
-  const response = await fetch(
-    `${API_URL}/terrains`,
-    {
-      cache: "no-store",
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Impossible de charger les terrains.",
-    );
-  }
-
-  return response.json();
+  return response.data;
 }

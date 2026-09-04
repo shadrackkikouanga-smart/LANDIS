@@ -13,20 +13,32 @@ import { UpdateTerrainDto } from './dto/update-terrain.dto';
 export class TerrainsService {
   constructor(
     private prisma: PrismaService,
-
     private historiqueService: HistoriqueService,
   ) {}
 
+  // ============================================================
+  // CREATION D'UN TERRAIN
+  // ============================================================
   async create(
     createTerrainDto: CreateTerrainDto,
   ) {
     const terrain =
       await this.prisma.terrain.create({
-        data: createTerrainDto,
-
+        data: {
+          reference: createTerrainDto.reference,
+          nom: createTerrainDto.nom,
+          superficie: Number(createTerrainDto.superficie),
+          localisation:
+            createTerrainDto.localisation,
+          statut:
+            createTerrainDto.statut || 'EN_COURS',
+          projectId:
+            Number(createTerrainDto.projectId),
+        },
         include: {
           project: true,
-          blocs: true,
+          sections: true,
+          voies: true,
         },
       });
 
@@ -39,18 +51,33 @@ export class TerrainsService {
     return terrain;
   }
 
+  // ============================================================
+  // LISTE DE TOUS LES TERRAINS
+  // ============================================================
   async findAll() {
     return this.prisma.terrain.findMany({
       include: {
         project: true,
-        blocs: true,
+
+        voies: true,
+
+        sections: {
+          include: {
+            blocs: {
+              include: {
+                parcelles: true,
+              },
+            },
+          },
+        },
       },
     });
   }
 
-  async findOne(
-    id: number,
-  ) {
+  // ============================================================
+  // DETAIL D'UN TERRAIN
+  // ============================================================
+  async findOne(id: number) {
     const terrain =
       await this.prisma.terrain.findUnique({
         where: {
@@ -60,9 +87,15 @@ export class TerrainsService {
         include: {
           project: true,
 
-          blocs: {
+          voies: true,
+
+          sections: {
             include: {
-              parcelles: true,
+              blocs: {
+                include: {
+                  parcelles: true,
+                },
+              },
             },
           },
         },
@@ -74,13 +107,24 @@ export class TerrainsService {
       );
     }
 
-    // ============================
-    // Statistiques des blocs
-    // ============================
+    // ==========================================================
+    // BLOCS
+    // ==========================================================
+    const blocsReels =
+      (terrain.sections || []).flatMap(
+        (section) => section.blocs || [],
+      );
 
     const nombreBlocsReels =
-      terrain.blocs.length;
+      blocsReels.length;
 
+    /*
+     * Nous n'avons pas actuellement de champ
+     * "nombreBlocs" dans Section ou Terrain.
+     *
+     * Le nombre réel constitue donc la référence
+     * disponible pour l'instant.
+     */
     const nombreBlocsDeclares =
       nombreBlocsReels;
 
@@ -88,20 +132,19 @@ export class TerrainsService {
       nombreBlocsDeclares -
       nombreBlocsReels;
 
-    // ============================
-    // Statistiques des parcelles
-    // ============================
-
+    // ==========================================================
+    // PARCELLES
+    // ==========================================================
     const toutesLesParcelles =
-      terrain.blocs.flatMap(
-        (bloc) => bloc.parcelles,
+      blocsReels.flatMap(
+        (bloc) => bloc.parcelles || [],
       );
 
     const nombreParcellesReelles =
       toutesLesParcelles.length;
 
     const nombreParcellesDeclarees =
-      terrain.blocs.reduce(
+      blocsReels.reduce(
         (total, bloc) =>
           total + bloc.nombreParcelles,
         0,
@@ -113,51 +156,114 @@ export class TerrainsService {
 
     const parcellesAttribuees =
       toutesLesParcelles.filter(
-        (p) =>
-          p.proprietaireId !== null,
+        (parcelle) =>
+          parcelle.proprietaireId !== null,
       ).length;
 
     const parcellesDisponibles =
       nombreParcellesReelles -
       parcellesAttribuees;
 
-    // ============================
-    // Etat du terrain
-    // ============================
+    // ==========================================================
+    // SUPERFICIE DES VOIES
+    // ==========================================================
+    const surfaceVoies =
+      (terrain.voies || []).reduce(
+        (total, voie) =>
+          total + voie.superficie,
+        0,
+      );
 
+    // ==========================================================
+    // SUPERFICIE DES SECTIONS
+    //
+    // IMPORTANT :
+    // La superficie d'une section concerne uniquement
+    // les blocs/parcelles.
+    //
+    // Les voies ne sont PAS incluses dans les sections.
+    // ==========================================================
+    const surfaceSections =
+      (terrain.sections || []).reduce(
+        (total, section) =>
+          total + section.superficie,
+        0,
+      );
+
+    // ==========================================================
+    // SUPERFICIE DES BLOCS
+    // ==========================================================
+    const surfaceBlocs =
+      blocsReels.reduce(
+        (total, bloc) =>
+          total + bloc.superficie,
+        0,
+      );
+
+    // ==========================================================
+    // SUPERFICIE DES PARCELLES
+    // ==========================================================
+    const surfaceParcelles =
+      toutesLesParcelles.reduce(
+        (total, parcelle) =>
+          total + parcelle.superficie,
+        0,
+      );
+
+    // ==========================================================
+    // SURFACE RESTANTE DU TERRAIN
+    //
+    // Terrain
+    //   - voies
+    //   - sections
+    //
+    // = surface encore disponible
+    // ==========================================================
+    const surfaceRestante =
+      terrain.superficie -
+      surfaceVoies -
+      surfaceSections;
+
+    // ==========================================================
+    // SURFACE NON LOTIE
+    //
+    // C'est la surface du terrain qui n'est encore affectée
+    // ni aux voies ni aux sections.
+    // ==========================================================
+    const surfaceNonLotie =
+      Math.max(
+        0,
+        surfaceRestante,
+      );
+
+    // ==========================================================
+    // ETAT DU TERRAIN
+    // ==========================================================
     const etatTerrain =
       ecartBlocs === 0 &&
       ecartParcelles === 0
         ? 'COMPLET'
         : 'INCOMPLET';
 
-    // ============================
-    // Surfaces
-    // ============================
-
-    const surfaceLotie =
-      terrain.blocs.reduce(
-        (total, bloc) =>
-          total + bloc.superficie,
-        0,
-      );
-
-    const surfaceRestante =
-      terrain.superficie -
-      surfaceLotie;
-
     return {
       ...terrain,
 
+      // Compatibilité avec l'ancien frontend
+      blocs: blocsReels,
+
       statistiques: {
+        // ------------------------------------------------------
+        // BLOCS
+        // ------------------------------------------------------
         nombreBlocsDeclares,
 
         nombreBlocsReels,
 
         ecartBlocs,
 
-        etatTerrain,
-
+        // ------------------------------------------------------
+        // PARCELLES
+        // ------------------------------------------------------
         nombreParcellesDeclarees,
 
         nombreParcellesReelles,
@@ -168,20 +274,76 @@ export class TerrainsService {
 
         parcellesAttribuees,
 
+        // ------------------------------------------------------
+        // SUPERFICIE TERRAIN
+        // ------------------------------------------------------
         surfaceTotaleTerrain:
-          terrain.superficie,
+          Number(
+            terrain.superficie.toFixed(2),
+          ),
 
-        surfaceLotie,
+        // ------------------------------------------------------
+        // VOIES
+        // ------------------------------------------------------
+        surfaceVoies:
+          Number(
+            surfaceVoies.toFixed(2),
+          ),
 
-        surfaceRestante,
+        nombreVoies:
+          terrain.voies.length,
+
+        // ------------------------------------------------------
+        // SECTIONS
+        // ------------------------------------------------------
+        surfaceSections:
+          Number(
+            surfaceSections.toFixed(2),
+          ),
+
+        nombreSections:
+          terrain.sections.length,
+
+        // ------------------------------------------------------
+        // BLOCS
+        // ------------------------------------------------------
+        surfaceBlocs:
+          Number(
+            surfaceBlocs.toFixed(2),
+          ),
+
+        // ------------------------------------------------------
+        // PARCELLES
+        // ------------------------------------------------------
+        surfaceParcelles:
+          Number(
+            surfaceParcelles.toFixed(2),
+          ),
+
+        // ------------------------------------------------------
+        // SURFACE RESTANTE
+        // ------------------------------------------------------
+        surfaceRestante:
+          Number(
+            surfaceRestante.toFixed(2),
+          ),
+
+        surfaceNonLotie:
+          Number(
+            surfaceNonLotie.toFixed(2),
+          ),
+
+        // ------------------------------------------------------
+        // ETAT
+        // ------------------------------------------------------
+        etatTerrain,
       },
     };
   }
 
-  // ========================================
-  // Mise à jour des coordonnées géographiques
-  // ========================================
-
+  // ============================================================
+  // MISE A JOUR DES COORDONNEES
+  // ============================================================
   async updateCoordinates(
     id: number,
     latitude: number,
@@ -207,13 +369,14 @@ export class TerrainsService {
         },
 
         data: {
-          latitude,
-          longitude,
+          localisation:
+            `Lat: ${latitude}, Lng: ${longitude}`,
         },
 
         include: {
           project: true,
-          blocs: true,
+          sections: true,
+          voies: true,
         },
       });
 
@@ -226,6 +389,9 @@ export class TerrainsService {
     return terrainModifie;
   }
 
+  // ============================================================
+  // MODIFICATION D'UN TERRAIN
+  // ============================================================
   async update(
     id: number,
     updateTerrainDto: UpdateTerrainDto,
@@ -239,11 +405,44 @@ export class TerrainsService {
           id,
         },
 
-        data: updateTerrainDto,
+        data: {
+          reference:
+            updateTerrainDto.reference ??
+            terrain.reference,
+
+          nom:
+            updateTerrainDto.nom ??
+            terrain.nom,
+
+          superficie:
+            updateTerrainDto.superficie !==
+            undefined
+              ? Number(
+                  updateTerrainDto.superficie,
+                )
+              : terrain.superficie,
+
+          localisation:
+            updateTerrainDto.localisation ??
+            terrain.localisation,
+
+          statut:
+            updateTerrainDto.statut ??
+            terrain.statut,
+
+          projectId:
+            updateTerrainDto.projectId !==
+            undefined
+              ? Number(
+                  updateTerrainDto.projectId,
+                )
+              : terrain.projectId,
+        },
 
         include: {
           project: true,
-          blocs: true,
+          sections: true,
+          voies: true,
         },
       });
 
@@ -256,9 +455,10 @@ export class TerrainsService {
     return terrainModifie;
   }
 
-  async remove(
-    id: number,
-  ) {
+  // ============================================================
+  // SUPPRESSION D'UN TERRAIN
+  // ============================================================
+  async remove(id: number) {
     const terrain =
       await this.findOne(id);
 

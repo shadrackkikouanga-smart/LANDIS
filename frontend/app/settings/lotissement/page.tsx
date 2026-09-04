@@ -17,6 +17,7 @@ import {
 interface LotissementSettings {
   superficieParcelle: string;
   largeurRuelle: string;
+  largeurAvenue: string;
   uniteSuperficie: string;
   devise: string;
   nombreParcellesParBloc: string;
@@ -29,6 +30,7 @@ interface LotissementSettings {
 const defaultSettings: LotissementSettings = {
   superficieParcelle: "400",
   largeurRuelle: "7",
+  largeurAvenue: "12",
   uniteSuperficie: "m²",
   devise: "FCFA",
   nombreParcellesParBloc: "12",
@@ -64,6 +66,7 @@ export default function LotissementSettingsPage() {
       const keys = [
         "lotissement_superficie_parcelle",
         "lotissement_largeur_ruelle",
+        "lotissement_largeur_avenue",
         "lotissement_unite_superficie",
         "lotissement_devise",
         "lotissement_nombre_parcelles_bloc",
@@ -107,6 +110,12 @@ export default function LotissementSettingsPage() {
             "lotissement_largeur_ruelle"
           ] ??
           defaultSettings.largeurRuelle,
+
+        largeurAvenue:
+          values[
+            "lotissement_largeur_avenue"
+          ] ??
+          defaultSettings.largeurAvenue,
 
         uniteSuperficie:
           values[
@@ -195,6 +204,11 @@ export default function LotissementSettingsPage() {
         updateSetting(
           "lotissement_largeur_ruelle",
           settings.largeurRuelle,
+        ),
+
+        updateSetting(
+          "lotissement_largeur_avenue",
+          settings.largeurAvenue,
         ),
 
         updateSetting(
@@ -367,6 +381,37 @@ export default function LotissementSettingsPage() {
 
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
+              Largeur standard des avenues
+            </label>
+
+            <div className="relative">
+              <Ruler
+                size={18}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+
+              <input
+                type="number"
+                value={
+                  settings.largeurAvenue
+                }
+                onChange={(e) =>
+                  updateField(
+                    "largeurAvenue",
+                    e.target.value,
+                  )
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-4 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+              />
+
+              <p className="mt-1 text-xs text-slate-500">
+                Valeur standard : 12 m
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
               Unité de superficie
             </label>
 
@@ -515,7 +560,7 @@ export default function LotissementSettingsPage() {
           </h2>
 
           <p className="mt-1 text-sm text-slate-500">
-            Déterminez si LANDIS doit générer
+            Déterminez si NIANI'S IMO doit générer
             automatiquement les références.
           </p>
         </div>

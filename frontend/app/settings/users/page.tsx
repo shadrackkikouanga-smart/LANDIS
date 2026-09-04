@@ -386,7 +386,7 @@ export default function UsersPage() {
 
               <p className="mt-1 text-sm text-slate-500">
                 Gérez les comptes et les rôles
-                des utilisateurs de LANDIS.
+                des utilisateurs de NIANI'S IMO.
               </p>
             </div>
           </div>
@@ -568,7 +568,7 @@ export default function UsersPage() {
                 <p className="mt-1 text-sm text-slate-500">
                   {editingUser
                     ? "Modifiez les informations du compte."
-                    : "Créez un nouveau compte LANDIS."}
+                    : "Créez un nouveau compte NIANI'S IMO."}
                 </p>
               </div>
 

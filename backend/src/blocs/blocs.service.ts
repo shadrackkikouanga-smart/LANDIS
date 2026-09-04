@@ -4,121 +4,211 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import {
+  PositionVoie,
+  StatutBloc,
+} from '@prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { HistoriqueService } from '../historique/historique.service';
 
 import { CreateBlocDto } from './dto/create-bloc.dto';
 import { UpdateBlocDto } from './dto/update-bloc.dto';
 
-
 @Injectable()
 export class BlocsService {
-
   constructor(
     private prisma: PrismaService,
-
     private historiqueService: HistoriqueService,
   ) {}
 
+  // ============================================================
+  // RECALCUL DU STATUT DU BLOC
+  // ============================================================
+
+  private async recalculerStatutBloc(
+    blocId: number,
+  ) {
+    const voies =
+      await this.prisma.blocVoie.findMany({
+        where: {
+          blocId,
+        },
+
+        select: {
+          position: true,
+        },
+      });
+
+    const positions =
+      new Set(
+        voies.map(
+          (voie) =>
+            voie.position,
+        ),
+      );
+
+    const positionsObligatoires:
+      PositionVoie[] = [
+        PositionVoie.HAUT,
+        PositionVoie.BAS,
+        PositionVoie.GAUCHE,
+        PositionVoie.DROITE,
+      ];
+
+    const blocTermine =
+      positionsObligatoires.every(
+        (position) =>
+          positions.has(position),
+      );
+
+    const statut =
+      blocTermine
+        ? StatutBloc.TERMINE
+        : StatutBloc.EN_COURS;
+
+    return this.prisma.bloc.update({
+      where: {
+        id: blocId,
+      },
+
+      data: {
+        statut,
+      },
+    });
+  }
 
   // ============================================================
-  // CREATION D'UN BLOC
+  // CREATION
   // ============================================================
 
   async create(
     createBlocDto: CreateBlocDto,
   ) {
-
-    // Vérifier que le terrain existe
-
-    const terrain =
-      await this.prisma.terrain.findUnique({
-
+    const section =
+      await this.prisma.section.findUnique({
         where: {
-          id: createBlocDto.terrainId,
+          id:
+            createBlocDto.sectionId,
         },
 
+        include: {
+          terrain: true,
+        },
       });
 
-
-    if (!terrain) {
-
+    if (!section) {
       throw new NotFoundException(
-        'Terrain introuvable',
+        'Section introuvable',
       );
-
     }
 
+    const blocIncomplet =
+      await this.prisma.bloc.findFirst({
+        where: {
+          sectionId:
+            createBlocDto.sectionId,
 
-    // Calcul de la superficie déjà utilisée
-    // par les autres blocs du terrain
+          statut:
+            StatutBloc.EN_COURS,
+        },
+      });
+
+    if (blocIncomplet) {
+      throw new BadRequestException(
+        `Impossible de créer ce bloc. ` +
+          `Le bloc "${blocIncomplet.reference}" ` +
+          `de cette section est encore en cours de création.`,
+      );
+    }
 
     const blocsExistants =
       await this.prisma.bloc.aggregate({
-
         where: {
-          terrainId:
-            createBlocDto.terrainId,
+          sectionId:
+            createBlocDto.sectionId,
         },
 
         _sum: {
           superficie: true,
         },
-
       });
 
-
     const superficieDejaUtilisee =
-      blocsExistants._sum.superficie ?? 0;
-
+      blocsExistants._sum
+        .superficie ?? 0;
 
     const nouvelleSuperficie =
-      createBlocDto.superficie;
-
+      Number(
+        createBlocDto.superficie,
+      );
 
     const superficieApresAjout =
       superficieDejaUtilisee +
       nouvelleSuperficie;
 
-
-    // Vérification du dépassement
-
     if (
       superficieApresAjout >
-      terrain.superficie
+      section.superficie
     ) {
-
       const superficieDisponible =
-        terrain.superficie -
+        section.superficie -
         superficieDejaUtilisee;
-
 
       throw new BadRequestException(
         `Impossible de créer ce bloc. ` +
-        `Le terrain "${terrain.reference}" ` +
-        `possède une superficie de ${terrain.superficie} m². ` +
-        `Il reste seulement ${superficieDisponible.toFixed(2)} m² disponibles.`,
+          `La section "${section.reference}" ` +
+          `possède une superficie de ${section.superficie} m². ` +
+          `Il reste seulement ${superficieDisponible.toFixed(2)} m² disponibles.`,
       );
-
     }
 
+    if (
+      nouvelleSuperficie <= 0
+    ) {
+      throw new BadRequestException(
+        'La superficie du bloc doit être supérieure à 0 m².',
+      );
+    }
 
-    // Création du bloc
+    if (
+      createBlocDto.nombreParcelles <=
+      0
+    ) {
+      throw new BadRequestException(
+        'Le bloc doit contenir au moins une parcelle.',
+      );
+    }
 
     const bloc =
       await this.prisma.bloc.create({
+        data: {
+          reference:
+            createBlocDto.reference,
 
-        data: createBlocDto,
+          nombreParcelles:
+            createBlocDto.nombreParcelles,
 
+          superficie:
+            nouvelleSuperficie,
+
+          sectionId:
+            createBlocDto.sectionId,
+
+          statut:
+            StatutBloc.EN_COURS,
+
+          latitude:
+            createBlocDto.latitude,
+
+          longitude:
+            createBlocDto.longitude,
+        },
       });
-
-
-    // Calcul de la superficie de chaque parcelle
 
     const superficieParcelle =
       bloc.superficie /
       bloc.nombreParcelles;
-
 
     const parcelles: {
       reference: string;
@@ -127,15 +217,12 @@ export class BlocsService {
       blocId: number;
     }[] = [];
 
-
     for (
       let i = 1;
       i <= bloc.nombreParcelles;
       i++
     ) {
-
       parcelles.push({
-
         reference:
           `${bloc.reference}-P${i}`,
 
@@ -147,169 +234,223 @@ export class BlocsService {
 
         blocId:
           bloc.id,
-
       });
-
     }
 
-
-    // Création automatique des parcelles
-
     await this.prisma.parcelle.createMany({
-
       data: parcelles,
-
     });
 
-
     const resultat =
-      await this.findOne(bloc.id);
-
+      await this.findOne(
+        bloc.id,
+      );
 
     await this.historiqueService.create(
       'CREATION',
       'BLOCS',
-      `Bloc "${bloc.reference}" créé avec ${bloc.nombreParcelles} parcelles`,
+      `Bloc "${bloc.reference}" créé avec ${bloc.nombreParcelles} parcelles dans la section "${section.reference}"`,
     );
 
-
     return resultat;
-
   }
 
-
   // ============================================================
-  // CREATION D'UN BLOC COMPLET
+  // CREATION BLOC COMPLET
   // ============================================================
 
   async createBlocComplet(
     createBlocDto: CreateBlocDto,
   ) {
-
-    return this.create(createBlocDto);
-
+    return this.create(
+      createBlocDto,
+    );
   }
 
-
   // ============================================================
-  // LISTE DES BLOCS
+  // LISTE
   // ============================================================
 
-  findAll() {
-
+  async findAll() {
     return this.prisma.bloc.findMany({
-
       include: {
-
-        terrain: true,
+        section: {
+          include: {
+            terrain: true,
+          },
+        },
 
         parcelles: true,
 
+        voies: {
+          include: {
+            voie: true,
+          },
+
+          orderBy: {
+            position: 'asc',
+          },
+        },
       },
 
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
-
   }
 
-
   // ============================================================
-  // DETAIL D'UN BLOC
+  // DETAIL
   // ============================================================
 
   async findOne(
     id: number,
   ) {
-
     const bloc =
       await this.prisma.bloc.findUnique({
-
         where: {
           id,
         },
 
         include: {
-
-          terrain: true,
+          section: {
+            include: {
+              terrain: true,
+            },
+          },
 
           parcelles: true,
 
-        },
+          voies: {
+            include: {
+              voie: true,
+            },
 
+            orderBy: {
+              position: 'asc',
+            },
+          },
+        },
       });
 
-
     if (!bloc) {
-
       throw new NotFoundException(
         'Bloc introuvable',
       );
-
     }
 
+    const blocStatut =
+      await this.recalculerStatutBloc(
+        bloc.id,
+      );
 
     const nombreParcellesReelles =
       bloc.parcelles.length;
 
-
     const ecartParcelles =
       bloc.nombreParcelles -
       nombreParcellesReelles;
-
 
     const etatBloc =
       ecartParcelles === 0
         ? 'COMPLET'
         : 'INCOMPLET';
 
-
     const parcellesAttribuees =
       bloc.parcelles.filter(
-        (p) =>
-          p.proprietaireId !== null,
+        (parcelle) =>
+          parcelle.proprietaireId !==
+          null,
       );
-
 
     const nombreParcellesAttribuees =
       parcellesAttribuees.length;
-
 
     const nombreParcellesDisponibles =
       nombreParcellesReelles -
       nombreParcellesAttribuees;
 
-
     const surfaceOccupee =
       parcellesAttribuees.reduce(
-        (total, parcelle) =>
-          total + parcelle.superficie,
+        (
+          total,
+          parcelle,
+        ) =>
+          total +
+          parcelle.superficie,
         0,
       );
-
 
     const surfaceDisponible =
       bloc.superficie -
       surfaceOccupee;
 
-
     const tauxOccupation =
       bloc.superficie === 0
         ? 0
-        :
-        Number(
-          (
-            (surfaceOccupee /
-              bloc.superficie) *
-            100
-          ).toFixed(2),
-        );
+        : Number(
+            (
+              (surfaceOccupee /
+                bloc.superficie) *
+              100
+            ).toFixed(2),
+          );
 
+    const voies =
+      bloc.voies;
+
+    const positionsVoies =
+      new Set(
+        voies.map(
+          (association) =>
+            association.position,
+        ),
+      );
+
+    const positionsObligatoires:
+      PositionVoie[] = [
+        PositionVoie.HAUT,
+        PositionVoie.BAS,
+        PositionVoie.GAUCHE,
+        PositionVoie.DROITE,
+      ];
+
+    const voiesManquantes =
+      positionsObligatoires.filter(
+        (position) =>
+          !positionsVoies.has(
+            position,
+          ),
+      );
+
+    const superficieVoies =
+      voies.reduce(
+        (
+          total,
+          association,
+        ) =>
+          total +
+          association.voie.superficie,
+        0,
+      );
+
+    const voiesPrincipales =
+      voies.filter(
+        (association) =>
+          association.position !==
+          PositionVoie.AUTRE,
+      );
 
     return {
-
       ...bloc,
 
-      statistiques: {
+      statut:
+        blocStatut.statut,
 
+      terrain:
+        bloc.section?.terrain,
+
+      statistiques: {
         nombreParcellesDeclarees:
           bloc.nombreParcelles,
 
@@ -340,12 +481,25 @@ export class BlocsService {
 
         tauxOccupation,
 
+        nombreVoies:
+          voies.length,
+
+        nombreVoiesPrincipales:
+          voiesPrincipales.length,
+
+        superficieVoies:
+          Number(
+            superficieVoies.toFixed(2),
+          ),
+
+        voiesManquantes,
+
+        quadrillageComplet:
+          voiesManquantes.length ===
+          0,
       },
-
     };
-
   }
-
 
   // ============================================================
   // STATISTIQUES
@@ -354,68 +508,99 @@ export class BlocsService {
   async statistiques(
     id: number,
   ) {
-
     const bloc =
       await this.prisma.bloc.findUnique({
-
         where: {
           id,
         },
 
         include: {
           parcelles: true,
-        },
 
+          voies: {
+            include: {
+              voie: true,
+            },
+          },
+        },
       });
 
-
     if (!bloc) {
-
       throw new NotFoundException(
         'Bloc introuvable',
       );
-
     }
 
+    const blocStatut =
+      await this.recalculerStatutBloc(
+        bloc.id,
+      );
 
     const totalReel =
       bloc.parcelles.length;
 
-
     const parcellesAttribuees =
       bloc.parcelles.filter(
-
-        p =>
-          p.proprietaireId !== null,
-
+        (parcelle) =>
+          parcelle.proprietaireId !==
+          null,
       ).length;
-
 
     const parcellesDisponibles =
       totalReel -
       parcellesAttribuees;
 
-
     const tauxOccupation =
       totalReel === 0
         ? 0
-        :
-        Number(
-          (
-            (parcellesAttribuees /
-              totalReel) *
-            100
-          ).toFixed(2),
-        );
-
+        : Number(
+            (
+              (parcellesAttribuees /
+                totalReel) *
+              100
+            ).toFixed(2),
+          );
 
     const difference =
       bloc.nombreParcelles -
       totalReel;
 
+    const positionsVoies =
+      new Set(
+        bloc.voies.map(
+          (association) =>
+            association.position,
+        ),
+      );
+
+    const positionsObligatoires:
+      PositionVoie[] = [
+        PositionVoie.HAUT,
+        PositionVoie.BAS,
+        PositionVoie.GAUCHE,
+        PositionVoie.DROITE,
+      ];
+
+    const voiesManquantes =
+      positionsObligatoires.filter(
+        (position) =>
+          !positionsVoies.has(
+            position,
+          ),
+      );
+
+    const superficieVoies =
+      bloc.voies.reduce(
+        (
+          total,
+          association,
+        ) =>
+          total +
+          association.voie.superficie,
+        0,
+      );
 
     return {
-
       blocId:
         bloc.id,
 
@@ -425,6 +610,9 @@ export class BlocsService {
       superficie:
         bloc.superficie,
 
+      statut:
+        blocStatut.statut,
+
       nombreDeclareDansBloc:
         bloc.nombreParcelles,
 
@@ -432,22 +620,17 @@ export class BlocsService {
         totalReel,
 
       anomalie:
-
         difference !== 0
           ? {
-
               existe: true,
 
               difference,
 
               message:
                 'Le nombre de parcelles du bloc ne correspond pas aux parcelles enregistrées.',
-
             }
           : {
-
               existe: false,
-
             },
 
       parcellesAttribuees,
@@ -456,511 +639,548 @@ export class BlocsService {
 
       tauxOccupation,
 
-    };
+      voies: {
+        nombre:
+          bloc.voies.length,
 
+        superficie:
+          Number(
+            superficieVoies.toFixed(2),
+          ),
+
+        voiesManquantes,
+
+        quadrillageComplet:
+          voiesManquantes.length ===
+          0,
+      },
+    };
   }
 
-
   // ============================================================
-  // MODIFICATION D'UN BLOC
+  // MODIFICATION
   // ============================================================
 
   async update(
     id: number,
-
     updateBlocDto: UpdateBlocDto,
   ) {
+    const blocActuel =
+      await this.prisma.bloc.findUnique({
+        where: {
+          id,
+        },
+      });
 
-    const bloc =
-      await this.findOne(id);
+    if (!blocActuel) {
+      throw new NotFoundException(
+        'Bloc introuvable',
+      );
+    }
 
+    const sectionId =
+      updateBlocDto.sectionId ??
+      blocActuel.sectionId;
 
-    // Terrain cible
+    const section =
+      await this.prisma.section.findUnique({
+        where: {
+          id: sectionId,
+        },
 
-    const terrainId =
-      updateBlocDto.terrainId ??
-      bloc.terrainId;
+        include: {
+          terrain: true,
+        },
+      });
 
+    if (!section) {
+      throw new NotFoundException(
+        'Section cible introuvable',
+      );
+    }
 
-    // Nouvelle superficie
+    /*
+     * Un bloc qui possède déjà des voies associées
+     * ne peut pas être déplacé vers un autre terrain.
+     *
+     * Une association BlocVoie décrit les limites physiques
+     * du bloc sur son terrain. La conserver après un changement
+     * de terrain créerait une incohérence géographique.
+     */
+    if (
+      sectionId !== blocActuel.sectionId
+    ) {
+      const voiesAssociees =
+        await this.prisma.blocVoie.count({
+          where: {
+            blocId: id,
+          },
+        });
+
+      if (voiesAssociees > 0) {
+        const sectionActuelle =
+          await this.prisma.section.findUnique({
+            where: {
+              id: blocActuel.sectionId,
+            },
+
+            include: {
+              terrain: true,
+            },
+          });
+
+        if (
+          sectionActuelle &&
+          sectionActuelle.terrainId !==
+            section.terrainId
+        ) {
+          throw new BadRequestException(
+            `Impossible de déplacer le bloc "${blocActuel.reference}" vers le terrain "${section.terrain.reference}" car il possède déjà ${voiesAssociees} voie(s) associée(s). ` +
+              `Les voies doivent d'abord être détachées du bloc avant tout changement de terrain.`,
+          );
+        }
+      }
+    }
 
     const superficie =
       updateBlocDto.superficie ??
-      bloc.superficie;
+      blocActuel.superficie;
 
-
-    // Vérifier que le terrain cible existe
-
-    const terrain =
-      await this.prisma.terrain.findUnique({
-
-        where: {
-          id: terrainId,
-        },
-
-      });
-
-
-    if (!terrain) {
-
-      throw new NotFoundException(
-        'Terrain introuvable',
+    if (superficie <= 0) {
+      throw new BadRequestException(
+        'La superficie du bloc doit être supérieure à 0 m².',
       );
-
     }
-
-
-    // Calculer la superficie des autres blocs
-    // en excluant le bloc actuellement modifié
 
     const autresBlocs =
       await this.prisma.bloc.aggregate({
-
         where: {
-
-          terrainId,
+          sectionId,
 
           id: {
             not: id,
           },
-
         },
 
         _sum: {
           superficie: true,
         },
-
       });
 
-
     const superficieAutresBlocs =
-      autresBlocs._sum.superficie ?? 0;
-
+      autresBlocs._sum.superficie ??
+      0;
 
     const superficieApresModification =
       superficieAutresBlocs +
       superficie;
 
-
-    // Vérification du dépassement
-
     if (
       superficieApresModification >
-      terrain.superficie
+      section.superficie
     ) {
-
       const superficieDisponible =
-        terrain.superficie -
+        section.superficie -
         superficieAutresBlocs;
-
 
       throw new BadRequestException(
         `Impossible de modifier ce bloc. ` +
-        `Le terrain "${terrain.reference}" ` +
-        `possède une superficie de ${terrain.superficie} m². ` +
-        `Il reste seulement ${superficieDisponible.toFixed(2)} m² disponibles.`,
+          `La section "${section.reference}" ` +
+          `possède une superficie de ${section.superficie} m². ` +
+          `Il reste seulement ${superficieDisponible.toFixed(2)} m² disponibles.`,
       );
-
     }
 
+    const nombreParcelles =
+      updateBlocDto.nombreParcelles ??
+      blocActuel.nombreParcelles;
 
-    // Modification
+    if (
+      nombreParcelles <= 0
+    ) {
+      throw new BadRequestException(
+        'Le bloc doit conserver au moins une parcelle.',
+      );
+    }
 
-    const blocModifie =
+    const blocMisAJour =
       await this.prisma.bloc.update({
-
         where: {
           id,
         },
 
-        data: updateBlocDto,
+        data: {
+          reference:
+            updateBlocDto.reference ??
+            blocActuel.reference,
 
+          superficie,
+
+          nombreParcelles,
+
+          sectionId,
+
+          latitude:
+            updateBlocDto.latitude ??
+            blocActuel.latitude,
+
+          longitude:
+            updateBlocDto.longitude ??
+            blocActuel.longitude,
+        },
       });
 
+    const parcelles =
+      await this.prisma.parcelle.findMany({
+        where: {
+          blocId: id,
+        },
+
+        orderBy: {
+          id: 'asc',
+        },
+      });
+
+    const parcellesDisponibles =
+      parcelles.filter(
+        (parcelle) =>
+          parcelle.proprietaireId ===
+          null,
+      );
+
+    if (
+      parcelles.length >
+      nombreParcelles
+    ) {
+      const nombreASupprimer =
+        parcelles.length -
+        nombreParcelles;
+
+      const disponiblesASupprimer =
+        parcellesDisponibles.slice(
+          -nombreASupprimer,
+        );
+
+      if (
+        disponiblesASupprimer.length <
+        nombreASupprimer
+      ) {
+        throw new BadRequestException(
+          'Impossible de réduire le nombre de parcelles : certaines parcelles sont déjà attribuées.',
+        );
+      }
+
+      await this.prisma.parcelle.deleteMany({
+        where: {
+          id: {
+            in:
+              disponiblesASupprimer.map(
+                (parcelle) =>
+                  parcelle.id,
+              ),
+          },
+        },
+      });
+    }
+
+    let parcellesActuelles =
+      await this.prisma.parcelle.findMany({
+        where: {
+          blocId: id,
+        },
+
+        orderBy: {
+          id: 'asc',
+        },
+      });
+
+    if (
+      parcellesActuelles.length <
+      nombreParcelles
+    ) {
+      const dernierNumero =
+        parcellesActuelles.reduce(
+          (
+            max,
+            parcelle,
+          ) =>
+            Math.max(
+              max,
+              Number(
+                parcelle.numero,
+              ) || 0,
+            ),
+          0,
+        );
+
+      const nombreACreer =
+        nombreParcelles -
+        parcellesActuelles.length;
+
+      const nouvellesParcelles: {
+        reference: string;
+        numero: string;
+        superficie: number;
+        blocId: number;
+      }[] = [];
+
+      for (
+        let i = 1;
+        i <= nombreACreer;
+        i++
+      ) {
+        const numero =
+          dernierNumero + i;
+
+        nouvellesParcelles.push({
+          reference:
+            `${blocMisAJour.reference}-P${numero}`,
+
+          numero:
+            String(numero),
+
+          superficie:
+            superficie /
+            nombreParcelles,
+
+          blocId:
+            id,
+        });
+      }
+
+      await this.prisma.parcelle.createMany({
+        data:
+          nouvellesParcelles,
+      });
+
+      parcellesActuelles =
+        await this.prisma.parcelle.findMany({
+          where: {
+            blocId: id,
+          },
+
+          orderBy: {
+            id: 'asc',
+          },
+        });
+    }
+
+    const nouvelleSuperficieParcelle =
+      superficie /
+      nombreParcelles;
+
+    await this.prisma.parcelle.updateMany({
+      where: {
+        blocId: id,
+
+        proprietaireId: null,
+      },
+
+      data: {
+        superficie:
+          nouvelleSuperficieParcelle,
+      },
+    });
+
+    await this.recalculerStatutBloc(
+      id,
+    );
 
     await this.historiqueService.create(
       'MODIFICATION',
       'BLOCS',
-      `Bloc "${bloc.reference}" modifié`,
+      `Bloc "${blocMisAJour.reference}" modifié`,
     );
 
-
-    return blocModifie;
-
+    return this.findOne(
+      blocMisAJour.id,
+    );
   }
-
 
   // ============================================================
   // SUPPRESSION
   // ============================================================
 
   async remove(
-  id: number,
-) {
-
-  const bloc =
-    await this.prisma.bloc.findUnique({
-
-      where: {
-        id,
-      },
-
-      include: {
-        parcelles: true,
-      },
-
-    });
-
-
-  if (!bloc) {
-
-    throw new NotFoundException(
-      'Bloc introuvable',
-    );
-
-  }
-
-
-  // ==========================================
-  // Vérifier si des parcelles sont attribuées
-  // ==========================================
-
-  const parcellesAttribuees =
-    bloc.parcelles.filter(
-      (parcelle) =>
-        parcelle.proprietaireId !== null,
-    );
-
-
-  if (parcellesAttribuees.length > 0) {
-
-    throw new BadRequestException(
-      `Impossible de supprimer le bloc "${bloc.reference}" car ${parcellesAttribuees.length} parcelle(s) sont déjà attribuée(s).`,
-    );
-
-  }
-
-
-  // ==========================================
-  // Suppression du bloc et de ses parcelles
-  // ==========================================
-
-  await this.prisma.$transaction(
-    async (tx) => {
-
-      // Supprimer d'abord les parcelles
-      await tx.parcelle.deleteMany({
-
-        where: {
-          blocId: id,
-        },
-
-      });
-
-
-      // Puis supprimer le bloc
-      await tx.bloc.delete({
-
+    id: number,
+  ) {
+    const bloc =
+      await this.prisma.bloc.findUnique({
         where: {
           id,
         },
 
+        include: {
+          parcelles: true,
+
+          voies: true,
+        },
       });
 
-    },
-  );
+    if (!bloc) {
+      throw new NotFoundException(
+        'Bloc introuvable',
+      );
+    }
 
+    const parcellesAttribuees =
+      bloc.parcelles.filter(
+        (parcelle) =>
+          parcelle.proprietaireId !==
+          null,
+      );
 
-  // ==========================================
-  // Historique
-  // ==========================================
+    if (
+      parcellesAttribuees.length >
+      0
+    ) {
+      throw new BadRequestException(
+        `Impossible de supprimer le bloc "${bloc.reference}" car ${parcellesAttribuees.length} parcelle(s) sont déjà attribuée(s).`,
+      );
+    }
 
-  await this.historiqueService.create(
-    'SUPPRESSION',
-    'BLOCS',
-    `Bloc "${bloc.reference}" supprimé avec ${bloc.parcelles.length} parcelle(s)`,
-  );
+    await this.prisma.$transaction(
+      async (tx) => {
+        /*
+         * Les relations BlocVoie sont supprimées
+         * automatiquement avec le bloc grâce à
+         * onDelete: Cascade.
+         *
+         * Les voies physiques restent dans le terrain.
+         */
+        await tx.parcelle.deleteMany({
+          where: {
+            blocId: id,
+          },
+        });
 
+        await tx.bloc.delete({
+          where: {
+            id,
+          },
+        });
+      },
+    );
 
-  return {
+    await this.historiqueService.create(
+      'SUPPRESSION',
+      'BLOCS',
+      `Bloc "${bloc.reference}" supprimé avec ${bloc.parcelles.length} parcelle(s)`,
+    );
 
-    message:
-      `Bloc "${bloc.reference}" supprimé avec succès.`,
+    return {
+      message:
+        `Bloc "${bloc.reference}" supprimé avec succès.`,
 
-    blocId:
-      bloc.id,
+      blocId:
+        bloc.id,
 
-    reference:
-      bloc.reference,
+      reference:
+        bloc.reference,
 
-    parcellesSupprimees:
-      bloc.parcelles.length,
+      parcellesSupprimees:
+        bloc.parcelles.length,
 
-  };
-
-}
+      voiesDetachees:
+        bloc.voies.length,
+    };
+  }
 
   // ============================================================
   // AJOUTER DES PARCELLES
   // ============================================================
 
   async ajouterParcelles(
-    blocId: number,
-
-    nombre: number,
+    id: number,
+    data: {
+      quantite: number;
+    },
   ) {
-
     const bloc =
-      await this.findOne(blocId);
-
-
-    const ancienNombre =
-      bloc.nombreParcelles;
-
-
-    const nouveauNombre =
-      ancienNombre +
-      nombre;
-
-
-    const nouvelleSuperficie =
-      bloc.superficie /
-      nouveauNombre;
-
-
-    await this.prisma.parcelle.updateMany({
-
-      where: {
-
-        blocId,
-
-        proprietaireId: null,
-
-      },
-
-      data: {
-
-        superficie:
-          nouvelleSuperficie,
-
-      },
-
-    });
-
-
-    const nouvellesParcelles: {
-      reference: string;
-      numero: string;
-      superficie: number;
-      blocId: number;
-    }[] = [];
-
-
-    for (
-      let i = ancienNombre + 1;
-      i <= nouveauNombre;
-      i++
-    ) {
-
-      nouvellesParcelles.push({
-
-        reference:
-          `${bloc.reference}-P${i}`,
-
-        numero:
-          String(i),
-
-        superficie:
-          nouvelleSuperficie,
-
-        blocId,
-
+      await this.prisma.bloc.findUnique({
+        where: {
+          id,
+        },
       });
 
+    if (!bloc) {
+      throw new NotFoundException(
+        'Bloc introuvable',
+      );
     }
 
+    if (
+      data.quantite <= 0
+    ) {
+      throw new BadRequestException(
+        'La quantité doit être supérieure à 0.',
+      );
+    }
 
-    await this.prisma.parcelle.createMany({
+    const nouveauNombre =
+      bloc.nombreParcelles +
+      data.quantite;
 
-      data:
-        nouvellesParcelles,
-
-    });
-
-
-    await this.prisma.bloc.update({
-
-      where: {
-        id: blocId,
-      },
-
-      data: {
-
+    return this.update(
+      id,
+      {
         nombreParcelles:
           nouveauNombre,
-
       },
-
-    });
-
-
-    const resultat =
-      await this.findOne(blocId);
-
-
-    await this.historiqueService.create(
-      'MODIFICATION',
-      'BLOCS',
-      `Ajout de ${nombre} parcelle(s) au bloc "${bloc.reference}"`,
     );
-
-
-    return resultat;
-
   }
-
 
   // ============================================================
   // REDUIRE DES PARCELLES
   // ============================================================
 
   async reduireParcelles(
-    blocId: number,
-
-    nombre: number,
+    id: number,
+    data: {
+      quantite: number;
+    },
   ) {
-
     const bloc =
-      await this.findOne(blocId);
+      await this.prisma.bloc.findUnique({
+        where: {
+          id,
+        },
+      });
 
+    if (!bloc) {
+      throw new NotFoundException(
+        'Bloc introuvable',
+      );
+    }
+
+    if (
+      data.quantite <= 0
+    ) {
+      throw new BadRequestException(
+        'La quantité doit être supérieure à 0.',
+      );
+    }
 
     const nouveauNombre =
       bloc.nombreParcelles -
-      nombre;
+      data.quantite;
 
-
-    if (nouveauNombre <= 0) {
-
+    if (
+      nouveauNombre <= 0
+    ) {
       throw new BadRequestException(
         'Le bloc doit conserver au moins une parcelle.',
       );
-
     }
 
-
-    const parcelles =
-      await this.prisma.parcelle.findMany({
-
-        where: {
-          blocId,
-        },
-
-        orderBy: {
-          id: 'desc',
-        },
-
-      });
-
-
-    const supprimer =
-      parcelles.slice(
-        0,
-        nombre,
-      );
-
-
-    const attribuees =
-      supprimer.filter(
-
-        p =>
-          p.proprietaireId !== null,
-
-      );
-
-
-    if (attribuees.length > 0) {
-
-      throw new BadRequestException(
-        'Impossible de supprimer une parcelle attribuée.',
-      );
-
-    }
-
-
-    await this.prisma.parcelle.deleteMany({
-
-      where: {
-
-        id: {
-
-          in:
-            supprimer.map(
-              p => p.id,
-            ),
-
-        },
-
-      },
-
-    });
-
-
-    const nouvelleSuperficie =
-      bloc.superficie /
-      nouveauNombre;
-
-
-    await this.prisma.parcelle.updateMany({
-
-      where: {
-
-        blocId,
-
-        proprietaireId: null,
-
-      },
-
-      data: {
-
-        superficie:
-          nouvelleSuperficie,
-
-      },
-
-    });
-
-
-    await this.prisma.bloc.update({
-
-      where: {
-        id: blocId,
-      },
-
-      data: {
-
+    return this.update(
+      id,
+      {
         nombreParcelles:
           nouveauNombre,
-
       },
-
-    });
-
-
-    const resultat =
-      await this.findOne(blocId);
-
-
-    await this.historiqueService.create(
-      'MODIFICATION',
-      'BLOCS',
-      `Réduction de ${nombre} parcelle(s) du bloc "${bloc.reference}"`,
     );
-
-
-    return resultat;
-
   }
-
 
   // ============================================================
   // COORDONNEES
@@ -968,60 +1188,47 @@ export class BlocsService {
 
   async updateCoordinates(
     id: number,
-
-    latitude: number,
-
-    longitude: number,
+    data: {
+      latitude: number;
+      longitude: number;
+    },
   ) {
-
     const bloc =
       await this.prisma.bloc.findUnique({
-
         where: {
           id,
         },
-
       });
 
-
     if (!bloc) {
-
       throw new NotFoundException(
         'Bloc introuvable',
       );
-
     }
-
 
     const blocModifie =
       await this.prisma.bloc.update({
-
         where: {
           id,
         },
 
         data: {
-          latitude,
-          longitude,
-        },
+          latitude:
+            data.latitude,
 
-        include: {
-          terrain: true,
-          parcelles: true,
+          longitude:
+            data.longitude,
         },
-
       });
-
 
     await this.historiqueService.create(
       'MODIFICATION',
       'BLOCS',
-      `Coordonnées du bloc "${bloc.reference}" modifiées`,
+      `Coordonnées mises à jour pour le bloc "${bloc.reference}"`,
     );
 
-
-    return blocModifie;
-
+    return this.findOne(
+      blocModifie.id,
+    );
   }
-
 }

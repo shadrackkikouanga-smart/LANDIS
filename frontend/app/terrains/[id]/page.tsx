@@ -12,11 +12,16 @@ import {
   AlertTriangle,
   UserCheck,
   CircleDollarSign,
+  SquareStack,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { getTerrain } from "@/services/terrains";
+import {
+  getSectionsByTerrain,
+  Section,
+} from "@/services/sections";
 
 interface Project {
   id: number;
@@ -34,40 +39,40 @@ interface Bloc {
   id: number;
   reference?: string;
   nom?: string;
-  superficie: number;
-  nombreParcelles: number;
-  parcelles: Parcelle[];
+  superficie?: number;
+  nombreParcelles?: number;
+  parcelles?: Parcelle[];
 }
 
 interface TerrainStatistics {
-  nombreBlocsDeclares: number;
-  nombreBlocsReels: number;
-  ecartBlocs: number;
-  etatTerrain: string;
+  nombreBlocsDeclares?: number;
+  nombreBlocsReels?: number;
+  ecartBlocs?: number;
+  etatTerrain?: string;
 
-  nombreParcellesDeclarees: number;
-  nombreParcellesReelles: number;
-  ecartParcelles: number;
+  nombreParcellesDeclarees?: number;
+  nombreParcellesReelles?: number;
+  ecartParcelles?: number;
 
-  parcellesDisponibles: number;
-  parcellesAttribuees: number;
+  parcellesDisponibles?: number;
+  parcellesAttribuees?: number;
 
-  surfaceTotaleTerrain: number;
-  surfaceLotie: number;
-  surfaceRestante: number;
+  surfaceTotaleTerrain?: number;
+  surfaceLotie?: number;
+  surfaceRestante?: number;
 }
 
 interface Terrain {
   id: number;
   reference: string;
   nom: string;
-  superficie: number;
+  superficie?: number;
   localisation?: string;
   statut: string;
   projectId: number;
   project?: Project;
-  blocs: Bloc[];
-  statistiques: TerrainStatistics;
+  blocs?: Bloc[];
+  statistiques?: TerrainStatistics;
 }
 
 export default function TerrainDetailsPage() {
@@ -75,19 +80,32 @@ export default function TerrainDetailsPage() {
 
   const id = Number(params.id);
 
-  const [terrain, setTerrain] = useState<Terrain | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [terrain, setTerrain] =
+    useState<Terrain | null>(null);
+
+  const [sections, setSections] =
+    useState<Section[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    async function loadTerrain() {
+    async function loadTerrainData() {
       try {
         setLoading(true);
         setError("");
 
-        const data = await getTerrain(id);
+        const [terrainData, sectionsData] =
+          await Promise.all([
+            getTerrain(id),
+            getSectionsByTerrain(id),
+          ]);
 
-        setTerrain(data);
+        setTerrain(terrainData);
+        setSections(sectionsData);
       } catch (error) {
         console.error(
           "Erreur chargement terrain :",
@@ -103,7 +121,7 @@ export default function TerrainDetailsPage() {
     }
 
     if (id) {
-      loadTerrain();
+      loadTerrainData();
     }
   }, [id]);
 
@@ -145,8 +163,16 @@ export default function TerrainDetailsPage() {
     }
   }
 
-  function formatNumber(value: number) {
-    return value.toLocaleString("fr-FR");
+  function formatNumber(
+    value: number | string | null | undefined,
+  ) {
+    const numericValue = Number(value ?? 0);
+
+    if (!Number.isFinite(numericValue)) {
+      return "0";
+    }
+
+    return numericValue.toLocaleString("fr-FR");
   }
 
   if (loading) {
@@ -173,33 +199,13 @@ export default function TerrainDetailsPage() {
       <div className="space-y-6">
         <Link
           href="/terrains"
-          className="
-            inline-flex
-            items-center
-            gap-2
-            text-sm
-            font-medium
-            text-slate-600
-            hover:text-slate-900
-          "
+          className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
         >
           <ArrowLeft size={17} />
-
           Retour aux terrains
         </Link>
 
-        <div
-          className="
-            rounded-xl
-            border
-            border-red-200
-            bg-red-50
-            px-5
-            py-4
-            text-sm
-            text-red-700
-          "
-        >
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
           {error}
         </div>
       </div>
@@ -211,38 +217,77 @@ export default function TerrainDetailsPage() {
       <div className="space-y-6">
         <Link
           href="/terrains"
-          className="
-            inline-flex
-            items-center
-            gap-2
-            text-sm
-            font-medium
-            text-slate-600
-            hover:text-slate-900
-          "
+          className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
         >
           <ArrowLeft size={17} />
-
           Retour aux terrains
         </Link>
 
-        <div
-          className="
-            rounded-2xl
-            border
-            border-slate-200
-            bg-white
-            p-10
-            text-center
-          "
-        >
+        <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
           Terrain introuvable.
         </div>
       </div>
     );
   }
 
-  const stats = terrain.statistiques;
+  const stats: TerrainStatistics =
+    terrain.statistiques || {};
+
+  const blocs = terrain.blocs || [];
+
+  /*
+   * ============================================================
+   * STATISTIQUES DES SECTIONS
+   * ============================================================
+   */
+
+  const nombreSections =
+    sections.length;
+
+  const superficieSections =
+    sections.reduce(
+      (total, section) =>
+        total + Number(section.superficie || 0),
+      0,
+    );
+
+  const sectionsAvecBlocs =
+    sections.filter(
+      (section) =>
+        (section.blocs?.length || 0) > 0,
+    ).length;
+
+  const sectionsSansBlocs =
+    nombreSections -
+    sectionsAvecBlocs;
+
+  const nombreBlocsSections =
+    sections.reduce(
+      (total, section) =>
+        total +
+        (section.blocs?.length || 0),
+      0,
+    );
+
+  const nombreParcellesSections =
+    sections.reduce(
+      (total, section) =>
+        total +
+        (section.blocs || []).reduce(
+          (blocTotal, bloc) =>
+            blocTotal +
+            (bloc.parcelles?.length || 0),
+          0,
+        ),
+      0,
+    );
+
+  const superficieRestanteSections =
+    Math.max(
+      0,
+      Number(terrain.superficie || 0) -
+        superficieSections,
+    );
 
   return (
     <div className="space-y-8">
@@ -251,21 +296,11 @@ export default function TerrainDetailsPage() {
 
       <Link
         href="/terrains"
-        className="
-          inline-flex
-          items-center
-          gap-2
-          text-sm
-          font-medium
-          text-slate-600
-          hover:text-slate-900
-        "
+        className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
       >
         <ArrowLeft size={17} />
-
         Retour aux terrains
       </Link>
-
 
       {/* EN-TÊTE */}
 
@@ -319,10 +354,14 @@ export default function TerrainDetailsPage() {
                   py-1
                   text-xs
                   font-medium
-                  ${getStatusStyle(terrain.statut)}
+                  ${getStatusStyle(
+                    terrain.statut,
+                  )}
                 `}
               >
-                {getStatusLabel(terrain.statut)}
+                {getStatusLabel(
+                  terrain.statut,
+                )}
               </span>
 
             </div>
@@ -333,7 +372,6 @@ export default function TerrainDetailsPage() {
 
           </div>
         </div>
-
 
         {/* PROJET */}
 
@@ -362,7 +400,6 @@ export default function TerrainDetailsPage() {
         </div>
 
       </div>
-
 
       {/* INFORMATIONS PRINCIPALES */}
 
@@ -408,7 +445,6 @@ export default function TerrainDetailsPage() {
           </div>
         </div>
 
-
         {/* SUPERFICIE */}
 
         <div
@@ -434,13 +470,15 @@ export default function TerrainDetailsPage() {
               </p>
 
               <p className="mt-1 text-sm font-semibold text-slate-800">
-                {formatNumber(terrain.superficie)} m²
+                {formatNumber(
+                  terrain.superficie,
+                )}{" "}
+                m²
               </p>
             </div>
 
           </div>
         </div>
-
 
         {/* ÉTAT */}
 
@@ -456,7 +494,8 @@ export default function TerrainDetailsPage() {
         >
           <div className="flex items-center gap-3">
 
-            {stats.etatTerrain === "COMPLET" ? (
+            {stats.etatTerrain ===
+            "COMPLET" ? (
               <CheckCircle2
                 size={22}
                 className="text-green-500"
@@ -479,13 +518,15 @@ export default function TerrainDetailsPage() {
                   text-sm
                   font-semibold
                   ${
-                    stats.etatTerrain === "COMPLET"
+                    stats.etatTerrain ===
+                    "COMPLET"
                       ? "text-green-600"
                       : "text-amber-600"
                   }
                 `}
               >
-                {stats.etatTerrain}
+                {stats.etatTerrain ||
+                  "NON DÉTERMINÉ"}
               </p>
             </div>
 
@@ -494,6 +535,426 @@ export default function TerrainDetailsPage() {
 
       </div>
 
+      {/* ======================================================
+          STATISTIQUES SECTIONS
+          ====================================================== */}
+
+      <div>
+
+        <div className="mb-4 flex items-center gap-3">
+
+          <SquareStack
+            size={22}
+            className="text-slate-700"
+          />
+
+          <div>
+
+            <h2 className="text-xl font-bold text-slate-900">
+              Statistiques des sections
+            </h2>
+
+            <p className="text-sm text-slate-500">
+              Vue d'ensemble du découpage du terrain en sections.
+            </p>
+
+          </div>
+
+        </div>
+
+        <div
+          className="
+            grid
+            grid-cols-1
+            gap-6
+            md:grid-cols-2
+            xl:grid-cols-4
+          "
+        >
+
+          {/* SECTIONS */}
+
+          <div
+            className="
+              rounded-2xl
+              border
+              border-slate-200
+              bg-white
+              p-6
+              shadow-sm
+            "
+          >
+            <p className="text-sm text-slate-500">
+              Sections
+            </p>
+
+            <p className="mt-2 text-3xl font-bold text-slate-900">
+              {formatNumber(
+                nombreSections,
+              )}
+            </p>
+          </div>
+
+          {/* SURFACE DES SECTIONS */}
+
+          <div
+            className="
+              rounded-2xl
+              border
+              border-slate-200
+              bg-white
+              p-6
+              shadow-sm
+            "
+          >
+            <p className="text-sm text-slate-500">
+              Surface des sections
+            </p>
+
+            <p className="mt-2 text-2xl font-bold text-slate-900">
+              {formatNumber(
+                superficieSections,
+              )}{" "}
+              m²
+            </p>
+          </div>
+
+          {/* AVEC BLOCS */}
+
+          <div
+            className="
+              rounded-2xl
+              border
+              border-slate-200
+              bg-white
+              p-6
+              shadow-sm
+            "
+          >
+            <p className="text-sm text-slate-500">
+              Sections avec blocs
+            </p>
+
+            <p className="mt-2 text-3xl font-bold text-blue-600">
+              {formatNumber(
+                sectionsAvecBlocs,
+              )}
+            </p>
+          </div>
+
+          {/* SANS BLOCS */}
+
+          <div
+            className="
+              rounded-2xl
+              border
+              border-slate-200
+              bg-white
+              p-6
+              shadow-sm
+            "
+          >
+            <p className="text-sm text-slate-500">
+              Sections sans blocs
+            </p>
+
+            <p
+              className={`
+                mt-2
+                text-3xl
+                font-bold
+                ${
+                  sectionsSansBlocs === 0
+                    ? "text-green-600"
+                    : "text-amber-600"
+                }
+              `}
+            >
+              {formatNumber(
+                sectionsSansBlocs,
+              )}
+            </p>
+          </div>
+
+        </div>
+
+        {/* RÉSUMÉ DU DÉCOUPAGE */}
+
+        <div
+          className="
+            mt-6
+            rounded-2xl
+            border
+            border-slate-200
+            bg-white
+            p-6
+            shadow-sm
+          "
+        >
+
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+
+            <div>
+              <p className="text-xs text-slate-400">
+                Blocs présents dans les sections
+              </p>
+
+              <p className="mt-1 text-xl font-bold text-slate-900">
+                {formatNumber(
+                  nombreBlocsSections,
+                )}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-400">
+                Parcelles présentes dans les sections
+              </p>
+
+              <p className="mt-1 text-xl font-bold text-slate-900">
+                {formatNumber(
+                  nombreParcellesSections,
+                )}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-400">
+                Surface non affectée à une section
+              </p>
+
+              <p className="mt-1 text-xl font-bold text-green-600">
+                {formatNumber(
+                  superficieRestanteSections,
+                )}{" "}
+                m²
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* ======================================================
+          LISTE DES SECTIONS
+          ====================================================== */}
+
+      <div>
+
+        <div className="mb-4 flex items-center justify-between">
+
+          <div>
+
+            <h2 className="text-xl font-bold text-slate-900">
+              Sections du terrain
+            </h2>
+
+            <p className="text-sm text-slate-500">
+              Détail des sections constituant ce terrain.
+            </p>
+
+          </div>
+
+          <span
+            className="
+              rounded-full
+              bg-slate-100
+              px-3
+              py-1
+              text-sm
+              font-medium
+              text-slate-700
+            "
+          >
+            {nombreSections} section
+            {nombreSections > 1
+              ? "s"
+              : ""}
+          </span>
+
+        </div>
+
+        {sections.length === 0 ? (
+          <div
+            className="
+              rounded-2xl
+              border
+              border-dashed
+              border-slate-300
+              bg-white
+              p-10
+              text-center
+            "
+          >
+            <SquareStack
+              size={36}
+              className="mx-auto text-slate-400"
+            />
+
+            <p className="mt-4 text-sm font-medium text-slate-700">
+              Aucune section n'est encore associée à ce terrain.
+            </p>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Les sections créées pour ce terrain apparaîtront ici.
+            </p>
+          </div>
+        ) : (
+          <div
+            className="
+              overflow-hidden
+              rounded-2xl
+              border
+              border-slate-200
+              bg-white
+              shadow-sm
+            "
+          >
+
+            <div className="overflow-x-auto">
+
+              <table className="w-full min-w-[800px] text-left">
+
+                <thead className="border-b bg-slate-50">
+
+                  <tr>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Section
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Superficie
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Blocs
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Parcelles
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Surface occupée
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Surface restante
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+                <tbody className="divide-y divide-slate-100">
+
+                  {sections.map((section) => {
+
+                    const sectionBlocs =
+                      section.blocs || [];
+
+                    const surfaceBlocs =
+                      sectionBlocs.reduce(
+                        (total, bloc) =>
+                          total +
+                          Number(
+                            bloc.superficie ||
+                              0,
+                          ),
+                        0,
+                      );
+
+                    const parcelles =
+                      sectionBlocs.reduce(
+                        (total, bloc) =>
+                          total +
+                          (bloc.parcelles
+                            ?.length || 0),
+                        0,
+                      );
+
+                    const surfaceRestante =
+                      Math.max(
+                        0,
+                        Number(
+                          section.superficie ||
+                            0,
+                        ) -
+                          surfaceBlocs,
+                      );
+
+                    return (
+                      <tr
+                        key={section.id}
+                        className="hover:bg-slate-50"
+                      >
+
+                        <td className="px-5 py-4">
+
+                          <p className="font-semibold text-slate-900">
+                            {section.reference}
+                          </p>
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            {section.nom}
+                          </p>
+
+                        </td>
+
+                        <td className="px-5 py-4 text-sm font-medium text-slate-700">
+                          {formatNumber(
+                            section.superficie,
+                          )}{" "}
+                          m²
+                        </td>
+
+                        <td className="px-5 py-4">
+
+                          <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                            {sectionBlocs.length}
+                          </span>
+
+                        </td>
+
+                        <td className="px-5 py-4">
+
+                          <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                            {parcelles}
+                          </span>
+
+                        </td>
+
+                        <td className="px-5 py-4 text-sm font-medium text-slate-700">
+                          {formatNumber(
+                            surfaceBlocs,
+                          )}{" "}
+                          m²
+                        </td>
+
+                        <td className="px-5 py-4 text-sm font-medium text-green-600">
+                          {formatNumber(
+                            surfaceRestante,
+                          )}{" "}
+                          m²
+                        </td>
+
+                      </tr>
+                    );
+                  })}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          </div>
+        )}
+
+      </div>
 
       {/* STATISTIQUES BLOCS */}
 
@@ -507,6 +968,7 @@ export default function TerrainDetailsPage() {
           />
 
           <div>
+
             <h2 className="text-xl font-bold text-slate-900">
               Statistiques des blocs
             </h2>
@@ -514,10 +976,10 @@ export default function TerrainDetailsPage() {
             <p className="text-sm text-slate-500">
               Comparaison entre les blocs déclarés et les blocs réellement créés.
             </p>
+
           </div>
 
         </div>
-
 
         <div
           className="
@@ -543,10 +1005,11 @@ export default function TerrainDetailsPage() {
             </p>
 
             <p className="mt-2 text-3xl font-bold text-slate-900">
-              {stats.nombreBlocsDeclares}
+              {formatNumber(
+                stats.nombreBlocsDeclares,
+              )}
             </p>
           </div>
-
 
           <div
             className="
@@ -563,10 +1026,11 @@ export default function TerrainDetailsPage() {
             </p>
 
             <p className="mt-2 text-3xl font-bold text-slate-900">
-              {stats.nombreBlocsReels}
+              {formatNumber(
+                stats.nombreBlocsReels,
+              )}
             </p>
           </div>
-
 
           <div
             className="
@@ -588,20 +1052,22 @@ export default function TerrainDetailsPage() {
                 text-3xl
                 font-bold
                 ${
-                  stats.ecartBlocs === 0
+                  (stats.ecartBlocs ?? 0) ===
+                  0
                     ? "text-green-600"
                     : "text-red-600"
                 }
               `}
             >
-              {stats.ecartBlocs}
+              {formatNumber(
+                stats.ecartBlocs,
+              )}
             </p>
           </div>
 
         </div>
 
       </div>
-
 
       {/* STATISTIQUES PARCELLES */}
 
@@ -615,6 +1081,7 @@ export default function TerrainDetailsPage() {
           />
 
           <div>
+
             <h2 className="text-xl font-bold text-slate-900">
               Statistiques des parcelles
             </h2>
@@ -622,10 +1089,10 @@ export default function TerrainDetailsPage() {
             <p className="text-sm text-slate-500">
               État des parcelles prévues et réellement créées.
             </p>
+
           </div>
 
         </div>
-
 
         <div
           className="
@@ -652,10 +1119,11 @@ export default function TerrainDetailsPage() {
             </p>
 
             <p className="mt-2 text-3xl font-bold text-slate-900">
-              {stats.nombreParcellesDeclarees}
+              {formatNumber(
+                stats.nombreParcellesDeclarees,
+              )}
             </p>
           </div>
-
 
           <div
             className="
@@ -672,10 +1140,11 @@ export default function TerrainDetailsPage() {
             </p>
 
             <p className="mt-2 text-3xl font-bold text-slate-900">
-              {stats.nombreParcellesReelles}
+              {formatNumber(
+                stats.nombreParcellesReelles,
+              )}
             </p>
           </div>
-
 
           <div
             className="
@@ -699,13 +1168,14 @@ export default function TerrainDetailsPage() {
               />
 
               <p className="text-3xl font-bold text-blue-600">
-                {stats.parcellesDisponibles}
+                {formatNumber(
+                  stats.parcellesDisponibles,
+                )}
               </p>
 
             </div>
 
           </div>
-
 
           <div
             className="
@@ -729,7 +1199,9 @@ export default function TerrainDetailsPage() {
               />
 
               <p className="text-3xl font-bold text-green-600">
-                {stats.parcellesAttribuees}
+                {formatNumber(
+                  stats.parcellesAttribuees,
+                )}
               </p>
 
             </div>
@@ -739,7 +1211,6 @@ export default function TerrainDetailsPage() {
         </div>
 
       </div>
-
 
       {/* SURFACES */}
 
@@ -756,7 +1227,6 @@ export default function TerrainDetailsPage() {
           </p>
 
         </div>
-
 
         <div
           className="
@@ -789,7 +1259,6 @@ export default function TerrainDetailsPage() {
             </p>
           </div>
 
-
           <div
             className="
               rounded-2xl
@@ -811,7 +1280,6 @@ export default function TerrainDetailsPage() {
               m²
             </p>
           </div>
-
 
           <div
             className="
@@ -838,7 +1306,6 @@ export default function TerrainDetailsPage() {
         </div>
 
       </div>
-
 
       {/* BLOCS */}
 
@@ -869,14 +1336,15 @@ export default function TerrainDetailsPage() {
               text-slate-700
             "
           >
-            {terrain.blocs.length} bloc
-            {terrain.blocs.length > 1 ? "s" : ""}
+            {blocs.length} bloc
+            {blocs.length > 1
+              ? "s"
+              : ""}
           </span>
 
         </div>
 
-
-        {terrain.blocs.length === 0 ? (
+        {blocs.length === 0 ? (
           <div
             className="
               rounded-2xl
@@ -912,84 +1380,91 @@ export default function TerrainDetailsPage() {
             "
           >
 
-            {terrain.blocs.map((bloc) => (
-              <div
-                key={bloc.id}
-                className="
-                  rounded-2xl
-                  border
-                  border-slate-200
-                  bg-white
-                  p-6
-                  shadow-sm
-                "
-              >
+            {blocs.map((bloc) => {
 
-                <div className="flex items-start justify-between">
+              const parcelles =
+                bloc.parcelles || [];
 
-                  <div>
+              return (
+                <div
+                  key={bloc.id}
+                  className="
+                    rounded-2xl
+                    border
+                    border-slate-200
+                    bg-white
+                    p-6
+                    shadow-sm
+                  "
+                >
 
-                    <p className="text-xs text-slate-400">
-                      Bloc
-                    </p>
+                  <div className="flex items-start justify-between">
 
-                    <h3 className="mt-1 text-lg font-bold text-slate-900">
-                      {bloc.nom ||
-                        bloc.reference ||
-                        `Bloc #${bloc.id}`}
-                    </h3>
+                    <div>
+
+                      <p className="text-xs text-slate-400">
+                        Bloc
+                      </p>
+
+                      <h3 className="mt-1 text-lg font-bold text-slate-900">
+                        {bloc.nom ||
+                          bloc.reference ||
+                          `Bloc #${bloc.id}`}
+                      </h3>
+
+                    </div>
+
+                    <Layers3
+                      size={22}
+                      className="text-slate-400"
+                    />
 
                   </div>
 
-                  <Layers3
-                    size={22}
-                    className="text-slate-400"
-                  />
+                  <div className="mt-5 space-y-3">
+
+                    <div>
+                      <p className="text-xs text-slate-400">
+                        Superficie
+                      </p>
+
+                      <p className="text-sm font-semibold text-slate-700">
+                        {formatNumber(
+                          bloc.superficie,
+                        )}{" "}
+                        m²
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-400">
+                        Parcelles déclarées
+                      </p>
+
+                      <p className="text-sm font-semibold text-slate-700">
+                        {formatNumber(
+                          bloc.nombreParcelles,
+                        )}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-400">
+                        Parcelles réelles
+                      </p>
+
+                      <p className="text-sm font-semibold text-slate-700">
+                        {formatNumber(
+                          parcelles.length,
+                        )}
+                      </p>
+                    </div>
+
+                  </div>
 
                 </div>
-
-
-                <div className="mt-5 space-y-3">
-
-                  <div>
-                    <p className="text-xs text-slate-400">
-                      Superficie
-                    </p>
-
-                    <p className="text-sm font-semibold text-slate-700">
-                      {formatNumber(
-                        bloc.superficie,
-                      )}{" "}
-                      m²
-                    </p>
-                  </div>
-
-
-                  <div>
-                    <p className="text-xs text-slate-400">
-                      Parcelles déclarées
-                    </p>
-
-                    <p className="text-sm font-semibold text-slate-700">
-                      {bloc.nombreParcelles}
-                    </p>
-                  </div>
-
-
-                  <div>
-                    <p className="text-xs text-slate-400">
-                      Parcelles réelles
-                    </p>
-
-                    <p className="text-sm font-semibold text-slate-700">
-                      {bloc.parcelles.length}
-                    </p>
-                  </div>
-
-                </div>
-
-              </div>
-            ))}
+              );
+            })}
 
           </div>
         )}

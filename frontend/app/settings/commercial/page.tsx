@@ -179,7 +179,7 @@ export default function CommercialSettingsPage() {
 
             <p className="mt-1 text-slate-500">
               Configurez les paramètres commerciaux et les
-              conditions de paiement de LANDIS.
+              conditions de paiement de NIANI'S IMO.
             </p>
           </div>
         </div>

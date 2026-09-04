@@ -275,7 +275,7 @@ export default function OrganizationSettingsPage() {
               <p className="text-sm text-slate-500">
 
                 Ces informations pourront être utilisées
-                sur les documents et contrats LANDIS.
+                sur les documents et contrats NIANI'S IMO.
 
               </p>
 

@@ -156,7 +156,7 @@ export default function HistoryPage() {
               "
             >
               Consultez les actions
-              effectuées dans LANDIS.
+              effectuées dans NIANI'S IMO.
             </p>
 
           </div>

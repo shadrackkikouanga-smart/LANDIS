@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 
 import { ApiTags } from '@nestjs/swagger';
@@ -33,8 +34,14 @@ export class ParcellesController {
   }
 
   @Get()
-  findAll() {
-    return this.parcellesService.findAll();
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.parcellesService.findAll(
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 20,
+    );
   }
 
   @Get(':id')

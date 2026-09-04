@@ -1,39 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  LandPlot,
-  MapPin,
-  Ruler,
-  Plus,
-  RefreshCw,
-  Eye,
-  Pencil,
-  Trash2,
-} from "lucide-react";
 import Link from "next/link";
-
-import { getTerrains, deleteTerrain } from "@/services/terrains";
-
-interface Project {
-  id: number;
-  name: string;
-  reference: string;
-}
-
-interface Terrain {
-  id: number;
-  reference: string;
-  nom: string;
-  superficie: number;
-  localisation?: string;
-  statut: string;
-  projectId: number;
-  project?: Project;
-}
+import { ArrowLeft, RefreshCw, Plus, Eye, Pencil, Trash2, LandPlot, Layers, Layers3 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { apiRequest } from "@/services/api";
 
 export default function TerrainsPage() {
-  const [terrains, setTerrains] = useState<Terrain[]>([]);
+  const router = useRouter();
+  const [terrains, setTerrains] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -41,667 +16,117 @@ export default function TerrainsPage() {
     try {
       setLoading(true);
       setError("");
-
-      const data = await getTerrains();
-
+      // Appel vers votre API backend
+      const data = await apiRequest("/terrains");
       setTerrains(data);
-    } catch (error) {
-      console.error(
-        "Erreur chargement terrains :",
-        error,
-      );
-
-      setError(
-        "Impossible de charger les terrains.",
-      );
+    } catch (err: any) {
+      console.error("Erreur chargement terrains :", err);
+      setError("Impossible de charger les terrains.");
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    loadTerrains();
-  }, []);
+  useEffect(() => { loadTerrains(); }, []);
 
-  async function handleDelete(
-    terrain: Terrain,
-  ) {
-    const confirmed = window.confirm(
-      `Voulez-vous vraiment supprimer le terrain "${terrain.nom}" ?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
+  async function handleDelete(id: number, ref: string) {
+    if (!window.confirm(`Voulez-vous vraiment supprimer le terrain "${ref}" ?`)) return;
     try {
-      await deleteTerrain(terrain.id);
-
+      await apiRequest(`/terrains/${id}`, { method: "DELETE" });
       await loadTerrains();
-    } catch (error) {
-      console.error(
-        "Erreur suppression terrain :",
-        error,
-      );
-
-      setError(
-        "Impossible de supprimer le terrain.",
-      );
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de la suppression.");
     }
   }
 
-  function getStatusLabel(status: string) {
-    switch (status) {
-      case "EN_PREPARATION":
-        return "En préparation";
-
-      case "EN_COURS":
-        return "En cours";
-
-      case "SUSPENDU":
-        return "Suspendu";
-
-      case "TERMINE":
-        return "Terminé";
-
-      default:
-        return status;
-    }
-  }
-
-  function getStatusStyle(status: string) {
-    switch (status) {
-      case "EN_PREPARATION":
-        return "bg-amber-50 text-amber-700";
-
-      case "EN_COURS":
-        return "bg-blue-50 text-blue-700";
-
-      case "SUSPENDU":
-        return "bg-red-50 text-red-700";
-
-      case "TERMINE":
-        return "bg-green-50 text-green-700";
-
-      default:
-        return "bg-slate-100 text-slate-700";
-    }
-  }
-
+  if (loading) return <div className="p-6 h-40 animate-pulse bg-slate-100 rounded-xl" />;
   return (
-    <div className="space-y-8">
-
-      {/* EN-TÊTE */}
-
-      <div
-        className="
-          flex
-          flex-col
-          gap-4
-          md:flex-row
-          md:items-center
-          md:justify-between
-        "
-      >
-
+    <div className="space-y-8 p-6">
+      {/* EN-TÊTE ET ENCART D'ORIGINE */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
-
-          <div
-            className="
-              rounded-xl
-              bg-slate-900
-              p-3
-              text-white
-            "
-          >
-            <LandPlot size={24} />
-          </div>
-
+          <div className="rounded-xl bg-slate-900 p-3 text-white"><Layers3 size={24} /></div>
           <div>
-
-            <h1
-              className="
-                text-3xl
-                font-bold
-                text-slate-900
-              "
-            >
-              Terrains
-            </h1>
-
-            <p
-              className="
-                mt-1
-                text-sm
-                text-slate-500
-              "
-            >
-              Gestion des terrains de lotissement
-            </p>
-
+            <h1 className="text-3xl font-bold text-slate-900">Terrains</h1>
+            <p className="mt-1 text-sm text-slate-500">Gestion des terrains principaux et parcelles</p>
           </div>
-
         </div>
-
-
-        <div className="flex items-center gap-3">
-
-          <button
-            type="button"
-            onClick={loadTerrains}
-            disabled={loading}
-            className="
-              flex
-              items-center
-              gap-2
-              rounded-lg
-              border
-              border-slate-300
-              bg-white
-              px-4
-              py-2.5
-              text-sm
-              font-medium
-              text-slate-700
-              hover:bg-slate-50
-              disabled:opacity-50
-            "
-          >
-            <RefreshCw
-              size={17}
-              className={
-                loading
-                  ? "animate-spin"
-                  : ""
-              }
-            />
-
-            Actualiser
+        <div className="flex gap-3">
+          <button type="button" onClick={loadTerrains} className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <RefreshCw size={17} /> Actualiser
           </button>
-
-
-          <Link
-            href="/terrains/new"
-            className="
-              flex
-              items-center
-              gap-2
-              rounded-lg
-              bg-slate-900
-              px-4
-              py-2.5
-              text-sm
-              font-medium
-              text-white
-              shadow-sm
-              hover:bg-slate-800
-            "
-          >
-            <Plus size={18} />
-
-            Nouveau terrain
-          </Link>
-
+          <Link href="/terrains/new" className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800"><Plus size={18} /> Nouveau terrain</Link>
         </div>
-
       </div>
 
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{error}</div>}
 
-      {/* ERREUR */}
-
-      {error && (
-        <div
-          className="
-            rounded-xl
-            border
-            border-red-200
-            bg-red-50
-            px-5
-            py-4
-            text-sm
-            text-red-700
-          "
-        >
-          {error}
+      {/* VOS CASIERS DE STATISTIQUES CONSERVÉS À L'IDENTIQUE */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">Nombre de terrains</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{terrains.length}</p>
         </div>
-      )}
-
-
-      {/* STATISTIQUE */}
-
-      {!loading && (
-        <div
-          className="
-            rounded-xl
-            border
-            border-slate-200
-            bg-white
-            px-5
-            py-4
-            shadow-sm
-          "
-        >
-
-          <p className="text-sm text-slate-500">
-            Nombre total de terrains
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">Superficie cumulée</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">
+            {terrains.reduce((total, t) => total + Number(t.superficie), 0).toLocaleString("fr-FR")} m²
           </p>
-
-          <p
-            className="
-              mt-1
-              text-2xl
-              font-bold
-              text-slate-900
-            "
-          >
-            {terrains.length}
-          </p>
-
         </div>
-      )}
+      </div>
 
+      {/* GRILLE DES CARTES DE TERRAINS AVEC PARCOURS ADAPTÉ DES RELATIONS */}
+      {terrains.length > 0 ? (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {terrains.map((terrain) => {
+            // Extraction sécurisée des sous-éléments pour éviter les plantages
+            const sectionsReelles = terrain.sections || [];
+            const blocsReels = sectionsReelles.flatMap((s: any) => s.blocs || []);
 
-      {/* CHARGEMENT */}
-
-      {loading && (
-        <div
-          className="
-            grid
-            grid-cols-1
-            gap-6
-            md:grid-cols-2
-            xl:grid-cols-3
-          "
-        >
-          {[1, 2, 3].map((item) => (
-            <div
-              key={item}
-              className="
-                h-72
-                animate-pulse
-                rounded-2xl
-                border
-                border-slate-200
-                bg-white
-              "
-            />
-          ))}
-        </div>
-      )}
-
-
-      {/* AUCUN TERRAIN */}
-
-      {!loading &&
-        terrains.length === 0 && (
-          <div
-            className="
-              rounded-2xl
-              border
-              border-dashed
-              border-slate-300
-              bg-white
-              px-6
-              py-16
-              text-center
-            "
-          >
-
-            <LandPlot
-              size={40}
-              className="
-                mx-auto
-                text-slate-400
-              "
-            />
-
-            <h2
-              className="
-                mt-5
-                text-lg
-                font-semibold
-                text-slate-900
-              "
-            >
-              Aucun terrain
-            </h2>
-
-            <p
-              className="
-                mt-2
-                text-sm
-                text-slate-500
-              "
-            >
-              Commencez par créer votre
-              premier terrain.
-            </p>
-
-            <Link
-              href="/terrains/new"
-              className="
-                mt-6
-                inline-flex
-                items-center
-                gap-2
-                rounded-lg
-                bg-slate-900
-                px-4
-                py-2.5
-                text-sm
-                font-medium
-                text-white
-                hover:bg-slate-800
-              "
-            >
-              <Plus size={18} />
-
-              Créer un terrain
-            </Link>
-
-          </div>
-        )}
-
-
-      {/* LISTE */}
-
-      {!loading &&
-        terrains.length > 0 && (
-          <div
-            className="
-              grid
-              grid-cols-1
-              gap-6
-              md:grid-cols-2
-              xl:grid-cols-3
-            "
-          >
-
-            {terrains.map((terrain) => (
-              <div
-                key={terrain.id}
-                className="
-                  overflow-hidden
-                  rounded-2xl
-                  border
-                  border-slate-200
-                  bg-white
-                  shadow-sm
-                "
-              >
-
-                {/* HEADER CARTE */}
-
-                <div
-                  className="
-                    flex
-                    items-center
-                    justify-between
-                    border-b
-                    border-slate-100
-                    px-5
-                    py-4
-                  "
-                >
-
-                  <div className="flex items-center gap-3">
-
-                    <div
-                      className="
-                        rounded-lg
-                        bg-slate-100
-                        p-2.5
-                      "
-                    >
-                      <LandPlot
-                        size={20}
-                        className="text-slate-700"
-                      />
-                    </div>
-
-                    <div>
-
-                      <p
-                        className="
-                          text-xs
-                          text-slate-400
-                        "
-                      >
-                        Référence
-                      </p>
-
-                      <p
-                        className="
-                          text-sm
-                          font-semibold
-                          text-slate-800
-                        "
-                      >
-                        {terrain.reference}
-                      </p>
-
-                    </div>
-
+            return (
+              <div key={terrain.id} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Référence</span>
+                    <h3 className="text-xl font-bold text-slate-900 mt-0.5">{terrain.reference}</h3>
+                    <p className="text-xs text-slate-500 mt-1 font-medium">Nom : {terrain.nom}</p>
                   </div>
-
-
-                  <span
-                    className={`
-                      rounded-full
-                      px-3
-                      py-1
-                      text-xs
-                      font-medium
-                      ${getStatusStyle(
-                        terrain.statut,
-                      )}
-                    `}
-                  >
-                    {getStatusLabel(
-                      terrain.statut,
-                    )}
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${
+                    terrain.statut === "COMPLET" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                  }`}>
+                    {terrain.statut || "En cours"}
                   </span>
-
                 </div>
 
-
-                {/* CONTENU */}
-
-                <div className="p-5">
-
-                  <h2
-                    className="
-                      text-xl
-                      font-bold
-                      text-slate-900
-                    "
-                  >
-                    {terrain.nom}
-                  </h2>
-
-
-                  <div className="mt-5 space-y-3">
-
-                    <div
-                      className="
-                        flex
-                        items-center
-                        gap-3
-                        text-sm
-                        text-slate-600
-                      "
-                    >
-
-                      <Ruler
-                        size={17}
-                        className="text-slate-400"
-                      />
-
-                      <span>
-                        {terrain.superficie.toLocaleString(
-                          "fr-FR",
-                        )}{" "}
-                        m²
-                      </span>
-
-                    </div>
-
-
-                    <div
-                      className="
-                        flex
-                        items-center
-                        gap-3
-                        text-sm
-                        text-slate-600
-                      "
-                    >
-
-                      <MapPin
-                        size={17}
-                        className="text-slate-400"
-                      />
-
-                      <span>
-                        {terrain.localisation ||
-                          "Localisation non renseignée"}
-                      </span>
-
-                    </div>
-
+                <div className="mt-6 space-y-3.5 border-t border-b border-slate-100 py-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-slate-500"><LandPlot size={16} /> <span>Superficie</span></div>
+                    <span className="font-semibold text-slate-800">{Number(terrain.superficie).toLocaleString("fr-FR")} m²</span>
                   </div>
-
-
-                  {/* PROJET */}
-
-                  <div
-                    className="
-                      mt-5
-                      rounded-lg
-                      bg-slate-50
-                      px-4
-                      py-3
-                    "
-                  >
-
-                    <p
-                      className="
-                        text-xs
-                        text-slate-400
-                      "
-                    >
-                      Projet
-                    </p>
-
-                    <p
-                      className="
-                        mt-1
-                        text-sm
-                        font-medium
-                        text-slate-700
-                      "
-                    >
-                      {terrain.project?.name ||
-                        "Projet non renseigné"}
-                    </p>
-
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-slate-500"><Layers size={16} /> <span>Sections incluses</span></div>
+                    <span className="font-semibold text-slate-800">{sectionsReelles.length}</span>
                   </div>
-
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-slate-500"><Layers3 size={16} /> <span>Blocs totaux</span></div>
+                    <span className="font-semibold text-slate-800">{blocsReels.length}</span>
+                  </div>
                 </div>
 
-
-                {/* ACTIONS */}
-
-                <div
-                  className="
-                    flex
-                    gap-2
-                    border-t
-                    border-slate-100
-                    bg-slate-50
-                    px-5
-                    py-4
-                  "
-                >
-
-                  <Link
-                    href={`/terrains/${terrain.id}`}
-                    className="
-                      inline-flex
-                      flex-1
-                      items-center
-                      justify-center
-                      gap-2
-                      rounded-lg
-                      border
-                      border-slate-300
-                      bg-white
-                      px-3
-                      py-2.5
-                      text-sm
-                      font-medium
-                      text-slate-700
-                      hover:bg-slate-100
-                    "
-                  >
-                    <Eye size={16} />
-
-                    Voir
-                  </Link>
-
-
-                  <Link
-                    href={`/terrains/${terrain.id}/edit`}
-                    className="
-                      inline-flex
-                      items-center
-                      justify-center
-                      rounded-lg
-                      border
-                      border-slate-300
-                      bg-white
-                      px-3
-                      py-2.5
-                      text-slate-700
-                      hover:bg-slate-100
-                    "
-                    title="Modifier"
-                  >
-                    <Pencil size={16} />
-                  </Link>
-
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleDelete(terrain)
-                    }
-                    className="
-                      inline-flex
-                      items-center
-                      justify-center
-                      rounded-lg
-                      border
-                      border-red-200
-                      bg-white
-                      px-3
-                      py-2.5
-                      text-red-600
-                      hover:bg-red-50
-                    "
-                    title="Supprimer"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-
+                <div className="mt-5 flex items-center justify-end gap-2">
+                  <Link href={`/terrains/${terrain.id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"><Eye size={16} /></Link>
+                  <Link href={`/terrains/${terrain.id}/edit`} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"><Pencil size={16} /></Link>
+                  <button type="button" onClick={() => handleDelete(terrain.id, terrain.reference)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>
                 </div>
-
               </div>
-            ))}
-
-          </div>
-        )}
-
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed p-12 text-center text-slate-400 bg-white">
+          Aucun terrain disponible pour le moment.
+        </div>
+      )}
     </div>
   );
 }

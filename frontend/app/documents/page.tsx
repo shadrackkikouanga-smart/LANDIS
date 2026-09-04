@@ -229,7 +229,7 @@ export default function DocumentsPage() {
 
           <p className="mt-2 text-sm text-slate-500">
             Consultez et gérez les documents
-            générés par LANDIS.
+            générés par NIANI'S IMO.
           </p>
         </div>
 
@@ -529,7 +529,7 @@ export default function DocumentsPage() {
 
               <p className="mt-1 text-sm text-slate-500">
                 Documents associés aux
-                transactions LANDIS.
+                transactions NIANI'S IMO.
               </p>
 
             </div>

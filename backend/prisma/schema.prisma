@@ -18,136 +18,298 @@ model Project {
   reference   String        @unique
   startDate   DateTime?
   status      ProjectStatus @default(EN_PREPARATION)
-  terrains    Terrain[]
+
+  terrains Terrain[]
 }
 
 model Terrain {
-  id           Int      @id @default(autoincrement())
-  reference    String   @unique
+  id           Int     @id @default(autoincrement())
+  reference    String  @unique
   nom          String
   superficie   Float
   localisation String?
-  statut       String   @default("DISPONIBLE")
-  latitude      Float?
-  longitude     Float?
-  projectId    Int
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  blocs        Bloc[]
-  project      Project  @relation(fields: [projectId], references: [id])
+  statut       String
+
+  projectId Int
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  sections Section[]
+  voies    Voie[]
+
+  famillesFoncieres FamilleFonciere[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Section {
+  id         Int     @id @default(autoincrement())
+  reference  String  @unique
+  nom        String?
+  superficie Float
+
+  terrainId Int
+  terrain   Terrain @relation(fields: [terrainId], references: [id], onDelete: Cascade)
+
+  blocs Bloc[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Bloc {
   id              Int        @id @default(autoincrement())
   reference       String     @unique
   nombreParcelles Int
-  terrainId       Int
-  latitude      Float?
-  longitude     Float?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
   superficie      Float
-  terrain         Terrain    @relation(fields: [terrainId], references: [id])
-  parcelles       Parcelle[]
+  latitude        Float?
+  longitude       Float?
+  statut          StatutBloc @default(EN_COURS)
+
+  sectionId Int
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  parcelles Parcelle[]
+  voies     BlocVoie[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Voie {
+  id         Int      @id @default(autoincrement())
+  reference  String   @unique
+  type       TypeVoie
+  largeur    Float
+  longueur   Float
+  superficie Float
+
+  terrainId Int
+  terrain   Terrain @relation(fields: [terrainId], references: [id], onDelete: Cascade)
+
+  blocs BlocVoie[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([terrainId])
+  @@index([type])
+}
+
+model BlocVoie {
+  id       Int          @id @default(autoincrement())
+  blocId   Int
+  voieId   Int
+  position PositionVoie
+
+  bloc Bloc @relation(fields: [blocId], references: [id], onDelete: Cascade)
+  voie Voie @relation(fields: [voieId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([blocId, voieId])
+  @@index([blocId])
+  @@index([voieId])
+  @@index([position])
+}
+
+model FamilleFonciere {
+  id            Int     @id @default(autoincrement())
+  nom           String
+  description   String?
+  estPrincipale Boolean @default(false)
+  active        Boolean @default(true)
+
+  terrainId Int
+  terrain   Terrain @relation(fields: [terrainId], references: [id], onDelete: Cascade)
+
+  membres MembreFamilleFonciere[]
+  droits  DroitFamilleFonciere[]
+
+  recensements Recensement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([terrainId])
+  @@index([estPrincipale])
+}
+
+model MembreFamilleFonciere {
+  id        Int     @id @default(autoincrement())
+  nom       String
+  prenom    String
+  telephone String?
+  email     String?
+  adresse   String?
+
+  qualite String
+
+  observations String?
+
+  familleId Int
+  famille   FamilleFonciere @relation(fields: [familleId], references: [id], onDelete: Cascade)
+
+  droits DroitFamilleFonciere[]
+
+  recensementsVendeurDonateur Recensement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([familleId])
+  @@index([nom])
+  @@index([qualite])
+}
+
+model DroitFamilleFonciere {
+  id          Int              @id @default(autoincrement())
+  type        TypeDroitFamille
+  description String?
+  actif       Boolean          @default(true)
+
+  familleId Int
+  famille   FamilleFonciere @relation(fields: [familleId], references: [id], onDelete: Cascade)
+
+  membreId Int?
+  membre   MembreFamilleFonciere? @relation(fields: [membreId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([familleId])
+  @@index([membreId])
+  @@index([type])
+  @@index([actif])
 }
 
 model Proprietaire {
-  id        Int        @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   nom       String
+  prenom    String
   telephone String
   email     String?
   adresse   String?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  prenom    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   parcelles Parcelle[]
 }
 
 model Acquereur {
-  id           Int           @id @default(autoincrement())
-  nom          String
-  prenom       String
-  telephone    String
-  email        String?
-  adresse      String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id        Int     @id @default(autoincrement())
+  nom       String
+  prenom    String
+  telephone String
+  email     String?
+  adresse   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   transactions Transaction[]
 }
 
 model Parcelle {
-  id              Int           @id @default(autoincrement())
-  reference       String        @unique
-  numero          String
-  superficie      Float
-  statut          String        @default("DISPONIBLE")
-  latitude        Float?
-  longitude       Float?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id         Int    @id @default(autoincrement())
+  reference  String @unique
+  numero     String
+  superficie Float
+
+  statut String @default("DISPONIBLE")
+
+  latitude  Float?
+  longitude Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   proprietaireId  Int?
   dateAttribution DateTime?
-  blocId          Int
-  bloc            Bloc          @relation(fields: [blocId], references: [id])
-  proprietaire    Proprietaire? @relation(fields: [proprietaireId], references: [id])
-  transactions    Transaction[]
+
+  blocId Int
+  bloc   Bloc @relation(fields: [blocId], references: [id])
+
+  proprietaire Proprietaire? @relation(fields: [proprietaireId], references: [id])
+
+  transactions Transaction[]
+
+  recensements Recensement[]
 }
 
 model Transaction {
-  id              Int               @id @default(autoincrement())
-  parcelleId      Int
-  acquereurId     Int
-  type            TypeTransaction
-  statut          StatutTransaction @default(EN_ATTENTE)
-  prix            Float?
-  dateTransaction DateTime          @default(now())
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  statutPaiement  StatutPaiement    @default(NON_PAYE)
-  documents       Document[]
-  paiements       Paiement[]
-  acquereur       Acquereur         @relation(fields: [acquereurId], references: [id])
-  parcelle        Parcelle          @relation(fields: [parcelleId], references: [id])
+  id          Int @id @default(autoincrement())
+  parcelleId  Int
+  acquereurId Int
+
+  type   TypeTransaction
+  statut StatutTransaction @default(EN_ATTENTE)
+
+  prix Float?
+
+  dateTransaction DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  statutPaiement StatutPaiement @default(NON_PAYE)
+
+  documents Document[]
+  paiements Paiement[]
+
+  acquereur Acquereur @relation(fields: [acquereurId], references: [id])
+  parcelle  Parcelle  @relation(fields: [parcelleId], references: [id])
 }
 
 model Paiement {
-  id            Int         @id @default(autoincrement())
+  id            Int @id @default(autoincrement())
   transactionId Int
-  montant       Float
-  modePaiement  String
-  reference     String?
-  commentaire   String?
-  datePaiement  DateTime    @default(now())
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  numeroRecu    String      @unique
-  transaction   Transaction @relation(fields: [transactionId], references: [id])
+
+  montant      Float
+  modePaiement String
+  reference    String?
+  commentaire  String?
+
+  datePaiement DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  numeroRecu String @unique
+
+  transaction Transaction @relation(fields: [transactionId], references: [id])
 }
 
 model Document {
-  id            Int         @id @default(autoincrement())
-  numero        String      @unique
-  type          String
+  id     Int    @id @default(autoincrement())
+  numero String @unique
+  type   String
+
   transactionId Int
   nomFichier    String
   chemin        String?
-  createdAt     DateTime    @default(now())
-  transaction   Transaction @relation(fields: [transactionId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  transaction Transaction @relation(fields: [transactionId], references: [id])
 }
 
 model User {
-  id         Int          @id @default(autoincrement())
-  name       String
-  email      String       @unique
-  password   String
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  role       Role         @default(USER)
+  id       Int    @id @default(autoincrement())
+  name     String
+  email    String @unique
+  password String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  role Role @default(USER)
+
   Historique Historique[]
 }
 
 model Organization {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   name      String
   email     String?
   telephone String?
@@ -155,30 +317,136 @@ model Organization {
   ville     String?
   pays      String?
   logo      String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Setting {
-  id        Int      @id @default(autoincrement())
-  key       String   @unique
-  value     String
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Historique {
-  id            Int      @id @default(autoincrement())
-  action        String
-  module        String
-  description   String
+  id          Int    @id @default(autoincrement())
+  action      String
+  module      String
+  description String
+
   utilisateurId Int?
   createdAt     DateTime @default(now())
-  User          User?    @relation(fields: [utilisateurId], references: [id])
+
+  User User? @relation(fields: [utilisateurId], references: [id])
 
   @@index([createdAt])
   @@index([module])
   @@index([utilisateurId])
+}
+
+model Recensement {
+  id Int @id @default(autoincrement())
+
+  parcelleId Int
+  parcelle   Parcelle @relation(fields: [parcelleId], references: [id], onDelete: Cascade)
+
+  situation SituationRecensement
+
+  occupantNom       String?
+  occupantPrenom    String?
+  occupantTelephone String?
+  occupantAdresse   String?
+
+  familleId Int?
+  famille   FamilleFonciere? @relation(fields: [familleId], references: [id], onDelete: SetNull)
+
+  vendeurDonateurNom      String?
+  vendeurDonateurPrenom   String?
+  vendeurDonateurMembreId Int?
+
+  vendeurDonateurMembre MembreFamilleFonciere? @relation(fields: [vendeurDonateurMembreId], references: [id], onDelete: SetNull)
+
+  vendeurDonateurQualite String?
+
+  montantTotal Decimal? @db.Decimal(15, 2)
+  montantPaye  Decimal? @db.Decimal(15, 2)
+
+  droitRevendique String?
+
+  cooperative Boolean @default(true)
+
+  observations String?
+
+  documents   RecensementDocument[]
+  signataires RecensementSignataire[]
+  autorites   RecensementAutoriteEtat[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parcelleId])
+  @@index([situation])
+  @@index([familleId])
+  @@index([vendeurDonateurMembreId])
+}
+
+model RecensementDocument {
+  id Int @id @default(autoincrement())
+
+  recensementId Int
+  recensement   Recensement @relation(fields: [recensementId], references: [id], onDelete: Cascade)
+
+  typeDocument String
+  reference    String?
+  dateDocument DateTime?
+  observations String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([recensementId])
+}
+
+model RecensementSignataire {
+  id Int @id @default(autoincrement())
+
+  recensementId Int
+  recensement   Recensement @relation(fields: [recensementId], references: [id], onDelete: Cascade)
+
+  nom          String
+  prenom       String
+  qualite      String?
+  fonction     String?
+  observations String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([recensementId])
+}
+
+model RecensementAutoriteEtat {
+  id Int @id @default(autoincrement())
+
+  recensementId Int
+  recensement   Recensement @relation(fields: [recensementId], references: [id], onDelete: Cascade)
+
+  nom          String
+  prenom       String?
+  fonction     String
+  institution  String?
+  telephone    String?
+  observations String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([recensementId])
+  @@index([fonction])
+  @@index([institution])
 }
 
 enum StatutPaiement {
@@ -211,4 +479,38 @@ enum StatutTransaction {
   EN_ATTENTE
   VALIDEE
   ANNULEE
+}
+
+enum StatutBloc {
+  EN_COURS
+  TERMINE
+}
+
+enum TypeVoie {
+  AVENUE
+  RUELLE
+  RUE
+  AUTRE
+}
+
+enum PositionVoie {
+  HAUT
+  BAS
+  GAUCHE
+  DROITE
+  AUTRE
+}
+
+enum TypeDroitFamille {
+  VENDRE
+  DONNER
+  AUTRE
+}
+
+enum SituationRecensement {
+  VENDUE
+  DONNEE
+  PRISE_ANARCHIQUEMENT
+  A_VERIFIER
+  AUTRE
 }

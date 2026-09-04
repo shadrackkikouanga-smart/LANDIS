@@ -7,11 +7,12 @@ import {
   Delete,
   ParseIntPipe,
   Res,
+  NotFoundException,
 } from '@nestjs/common';
 
 import type { Response } from 'express';
 
-import * as path from 'path';
+import * as fs from 'fs';
 
 import { DocumentsService } from './documents.service';
 
@@ -19,7 +20,6 @@ import { CreateDocumentDto } from './dto/create-document.dto';
 
 @Controller('documents')
 export class DocumentsController {
-
   constructor(
     private readonly documentsService: DocumentsService,
   ) {}
@@ -54,22 +54,25 @@ export class DocumentsController {
     transactionId: number,
     @Res() res: Response,
   ) {
-
     const document =
       await this.documentsService.genererContratVente(
         transactionId,
       );
 
-    const cheminFichier =
-      path.join(
-        process.cwd(),
-        'documents',
-        'contrats',
-        document.nomFichier,
+    if (!document.chemin) {
+      throw new NotFoundException(
+        'Chemin du contrat introuvable',
       );
+    }
+
+    if (!fs.existsSync(document.chemin)) {
+      throw new NotFoundException(
+        `Fichier du contrat introuvable : ${document.chemin}`,
+      );
+    }
 
     return res.download(
-      cheminFichier,
+      document.chemin,
       document.nomFichier,
     );
   }

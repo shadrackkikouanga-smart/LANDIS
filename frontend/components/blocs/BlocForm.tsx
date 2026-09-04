@@ -1,170 +1,188 @@
 "use client";
 
-import {
-  FormEvent,
-  useEffect,
-  useState,
-} from "react";
-
-import {
-  createBloc,
-  updateBloc,
-  Bloc,
-  Terrain,
-} from "@/services/blocs";
+import { FormEvent, useEffect, useState } from "react";
+import { createBloc, updateBloc, Bloc } from "@/services/blocs";
+import { getSections, Section } from "@/services/sections";
 
 interface BlocFormProps {
-  terrains: Terrain[];
-  bloc?: Bloc;
   onSuccess: () => void;
   onCancel: () => void;
+  bloc?: Bloc;
 }
 
 export default function BlocForm({
-  terrains,
-  bloc,
   onSuccess,
   onCancel,
+  bloc,
 }: BlocFormProps) {
   const editing = Boolean(bloc);
 
-  const [reference, setReference] =
-    useState("");
+  const [reference, setReference] = useState("");
+  const [superficie, setSuperficie] = useState("");
+  const [nombreParcelles, setNombreParcelles] = useState("");
+  const [sectionId, setSectionId] = useState("");
 
-  const [superficie, setSuperficie] =
-    useState("");
+  const [sections, setSections] = useState<Section[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const [nombreParcelles, setNombreParcelles] =
-    useState("");
+  const [vHaut, setVHaut] = useState("AUTRE");
+  const [lHaut, setLHaut] = useState("0");
 
-  const [terrainId, setTerrainId] =
-    useState("");
+  const [vBas, setVBas] = useState("AUTRE");
+  const [lBas, setLBas] = useState("0");
 
-  const [loading, setLoading] =
-    useState(false);
+  const [vGauche, setVGauche] = useState("AUTRE");
+  const [lGauche, setLGauche] = useState("0");
 
-  const [error, setError] =
-    useState("");
+  const [vDroite, setVDroite] = useState("AUTRE");
+  const [lDroite, setLDroite] = useState("0");
+
+  useEffect(() => {
+    async function loadSectionsData() {
+      try {
+        const data = await getSections();
+        setSections(data);
+      } catch (err) {
+        console.error("Erreur sections:", err);
+      }
+    }
+
+    loadSectionsData();
+  }, []);
 
   useEffect(() => {
     if (bloc) {
-      setReference(
-        bloc.reference ?? "",
-      );
+      setReference(bloc.reference ?? "");
+      setSuperficie(String(bloc.superficie ?? ""));
+      setNombreParcelles(String(bloc.nombreParcelles ?? ""));
 
-      setSuperficie(
-        String(bloc.superficie ?? ""),
-      );
+      setSectionId(String(bloc.sectionId ?? ""));
 
-      setNombreParcelles(
-        String(
-          bloc.nombreParcelles ?? "",
-        ),
-      );
+      setVHaut(bloc.voieHautType ?? "AUTRE");
+      setLHaut(String(bloc.voieHautLargeur ?? "0"));
 
-      setTerrainId(
-        String(bloc.terrainId ?? ""),
-      );
+      setVBas(bloc.voieBasType ?? "AUTRE");
+      setLBas(String(bloc.voieBasLargeur ?? "0"));
+
+      setVGauche(bloc.voieGaucheType ?? "AUTRE");
+      setLGauche(String(bloc.voieGaucheLargeur ?? "0"));
+
+      setVDroite(bloc.voieDroiteType ?? "AUTRE");
+      setLDroite(String(bloc.voieDroiteLargeur ?? "0"));
     }
   }, [bloc]);
 
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
+  const renderVoie = (
+    label: string,
+    type: string,
+    setType: (value: string) => void,
+    larg: string,
+    setLarg: (value: string) => void
+  ) => (
+    <div className="rounded-lg border bg-slate-50 p-3">
+      <span className="mb-2 block text-xs font-bold uppercase text-slate-400">
+        {label} *
+      </span>
 
+      <div className="flex gap-3">
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="rounded border bg-white p-1.5 text-sm outline-none"
+        >
+          <option value="AUTRE">Sélectionner le type</option>
+          <option value="AVENUE">Avenue</option>
+          <option value="RUELLE">Ruelle</option>
+        </select>
+
+        <input
+          type="number"
+          min="0"
+          step="0.5"
+          value={larg}
+          onChange={(e) => setLarg(e.target.value)}
+          placeholder="Largeur (m)"
+          className="w-full rounded border p-1.5 text-sm outline-none"
+        />
+      </div>
+    </div>
+  );
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setError("");
 
-    if (!reference.trim()) {
-      setError(
-        "La référence du bloc est obligatoire.",
-      );
+    if (!reference.trim() || !superficie || !sectionId) {
+      setError("Veuillez remplir les champs obligatoires.");
       return;
     }
 
     if (
-      !superficie ||
-      Number(superficie) <= 0
+      !editing &&
+      (!nombreParcelles || Number(nombreParcelles) <= 0)
+    ) {
+      setError("Le nombre de parcelles doit être supérieur à 0.");
+      return;
+    }
+
+    const h = vHaut.toUpperCase();
+    const b = vBas.toUpperCase();
+    const g = vGauche.toUpperCase();
+    const d = vDroite.toUpperCase();
+
+    if (
+      h === "AUTRE" ||
+      b === "AUTRE" ||
+      g === "AUTRE" ||
+      d === "AUTRE"
     ) {
       setError(
-        "La superficie doit être supérieure à 0.",
+        "Validation bloquée. Vous devez obligatoirement spécifier une Avenue ou une Ruelle sur les 4 bordures géographiques."
       );
       return;
-    }
-
-    if (!terrainId) {
-      setError(
-        "Veuillez sélectionner un terrain.",
-      );
-      return;
-    }
-
-    if (!editing) {
-      if (
-        !nombreParcelles ||
-        Number(nombreParcelles) <= 0
-      ) {
-        setError(
-          "Le nombre de parcelles doit être supérieur à 0.",
-        );
-        return;
-      }
-
-      if (
-        !Number.isInteger(
-          Number(nombreParcelles),
-        )
-      ) {
-        setError(
-          "Le nombre de parcelles doit être un nombre entier.",
-        );
-        return;
-      }
     }
 
     try {
       setLoading(true);
 
+      const voies = {
+        voieHautType: h,
+        voieHautLargeur: Number(lHaut) || 0,
+
+        voieBasType: b,
+        voieBasLargeur: Number(lBas) || 0,
+
+        voieGaucheType: g,
+        voieGaucheLargeur: Number(lGauche) || 0,
+
+        voieDroiteType: d,
+        voieDroiteLargeur: Number(lDroite) || 0,
+      };
+
       if (editing && bloc) {
         await updateBloc(bloc.id, {
-          reference:
-            reference.trim(),
-
-          superficie:
-            Number(superficie),
-
-          terrainId:
-            Number(terrainId),
+          reference: reference.trim(),
+          superficie: Number(superficie),
+          sectionId: Number(sectionId),
+          ...voies,
         });
       } else {
         await createBloc({
-          reference:
-            reference.trim(),
-
-          superficie:
-            Number(superficie),
-
-          nombreParcelles:
-            Number(nombreParcelles),
-
-          terrainId:
-            Number(terrainId),
+          reference: reference.trim(),
+          superficie: Number(superficie),
+          nombreParcelles: Number(nombreParcelles),
+          sectionId: Number(sectionId),
+          ...voies,
         });
       }
 
       onSuccess();
-    } catch (error) {
-      console.error(
-        "Erreur formulaire bloc :",
-        error,
-      );
+    } catch (err: any) {
+      console.error("Erreur enregistrement bloc :", err);
 
       setError(
-        error instanceof Error
-          ? error.message
-          : editing
-            ? "Impossible de modifier le bloc."
-            : "Impossible de créer le bloc.",
+        err?.message || "Une erreur est survenue."
       );
     } finally {
       setLoading(false);
@@ -172,349 +190,145 @@ export default function BlocForm({
   }
 
   return (
-    <div
-      className="
-        rounded-2xl
-        border
-        border-slate-200
-        bg-white
-        shadow-sm
-      "
-    >
-
-      {/* HEADER */}
-
-      <div
-        className="
-          border-b
-          border-slate-200
-          px-6
-          py-5
-        "
-      >
-        <h2
-          className="
-            text-xl
-            font-bold
-            text-slate-900
-          "
-        >
-          {editing
-            ? "Modifier le bloc"
-            : "Nouveau bloc"}
+    <div className="rounded-2xl border bg-white p-6 shadow-sm">
+      <div className="mb-6 border-b pb-4">
+        <h2 className="text-xl font-bold text-slate-900">
+          {editing ? "Modifier le bloc" : "Nouveau bloc"}
         </h2>
-
-        <p
-          className="
-            mt-1
-            text-sm
-            text-slate-500
-          "
-        >
-          {editing
-            ? "Modifiez les informations du bloc."
-            : "Créez un bloc et générez automatiquement ses parcelles."}
-        </p>
       </div>
 
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="rounded bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
-      {/* FORMULAIRE */}
-
-      <form onSubmit={handleSubmit}>
-
-        <div className="space-y-6 px-6 py-6">
-
-          {error && (
-            <div
-              className="
-                rounded-lg
-                border
-                border-red-200
-                bg-red-50
-                px-4
-                py-3
-                text-sm
-                text-red-700
-              "
-            >
-              {error}
-            </div>
-          )}
-
-
-          {/* TERRAIN */}
-
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label
-              className="
-                mb-2
-                block
-                text-sm
-                font-medium
-                text-slate-700
-              "
-            >
-              Terrain *
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Section d'affectation *
             </label>
 
             <select
-              value={terrainId}
-              onChange={(event) =>
-                setTerrainId(
-                  event.target.value,
-                )
-              }
-              className="
-                w-full
-                rounded-lg
-                border
-                border-slate-300
-                bg-white
-                px-3
-                py-2.5
-                text-sm
-                outline-none
-                focus:border-slate-500
-                focus:ring-2
-                focus:ring-slate-200
-              "
+              value={sectionId}
+              onChange={(e) => setSectionId(e.target.value)}
+              className="w-full rounded border bg-white p-2.5 text-sm outline-none"
             >
               <option value="">
-                Sélectionner un terrain
+                Sélectionner une section
               </option>
 
-              {terrains.map(
-                (terrain) => (
-                  <option
-                    key={terrain.id}
-                    value={terrain.id}
-                  >
-                    {terrain.reference} —{" "}
-                    {terrain.nom}
-                  </option>
-                ),
-              )}
+              {sections.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.reference} — {s.nom}
+                </option>
+              ))}
             </select>
           </div>
 
-
-          {/* RÉFÉRENCE */}
-
           <div>
-            <label
-              className="
-                mb-2
-                block
-                text-sm
-                font-medium
-                text-slate-700
-              "
-            >
+            <label className="mb-1 block text-sm font-medium text-slate-700">
               Référence du bloc *
             </label>
 
             <input
               type="text"
               value={reference}
-              onChange={(event) =>
-                setReference(
-                  event.target.value,
-                )
-              }
-              placeholder="Ex. BLOC-A"
-              className="
-                w-full
-                rounded-lg
-                border
-                border-slate-300
-                px-3
-                py-2.5
-                text-sm
-                outline-none
-                focus:border-slate-500
-                focus:ring-2
-                focus:ring-slate-200
-              "
+              onChange={(e) => setReference(e.target.value)}
+              className="w-full rounded border p-2.5 text-sm outline-none"
             />
           </div>
 
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Superficie (m²) *
+            </label>
 
-          {/* SUPERFICIE + PARCELLES */}
-
-          <div
-            className="
-              grid
-              grid-cols-1
-              gap-5
-              md:grid-cols-2
-            "
-          >
-
-            <div>
-              <label
-                className="
-                  mb-2
-                  block
-                  text-sm
-                  font-medium
-                  text-slate-700
-                "
-              >
-                Superficie du bloc (m²) *
-              </label>
-
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={superficie}
-                onChange={(event) =>
-                  setSuperficie(
-                    event.target.value,
-                  )
-                }
-                placeholder="Ex. 10000"
-                className="
-                  w-full
-                  rounded-lg
-                  border
-                  border-slate-300
-                  px-3
-                  py-2.5
-                  text-sm
-                  outline-none
-                  focus:border-slate-500
-                  focus:ring-2
-                  focus:ring-slate-200
-                "
-              />
-            </div>
-
-
-            <div>
-              <label
-                className="
-                  mb-2
-                  block
-                  text-sm
-                  font-medium
-                  text-slate-700
-                "
-              >
-                Nombre de parcelles *
-              </label>
-
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={nombreParcelles}
-                onChange={(event) =>
-                  setNombreParcelles(
-                    event.target.value,
-                  )
-                }
-                disabled={editing}
-                placeholder="Ex. 25"
-                className="
-                  w-full
-                  rounded-lg
-                  border
-                  border-slate-300
-                  px-3
-                  py-2.5
-                  text-sm
-                  outline-none
-                  disabled:bg-slate-100
-                  disabled:text-slate-500
-                  focus:border-slate-500
-                  focus:ring-2
-                  focus:ring-slate-200
-                "
-              />
-
-              {editing && (
-                <p
-                  className="
-                    mt-2
-                    text-xs
-                    text-slate-500
-                  "
-                >
-                  Pour modifier le nombre de
-                  parcelles, utilisez les actions
-                  disponibles sur la page du bloc.
-                </p>
-              )}
-            </div>
-
+            <input
+              type="number"
+              step="0.01"
+              value={superficie}
+              onChange={(e) => setSuperficie(e.target.value)}
+              className="w-full rounded border p-2.5 text-sm outline-none"
+            />
           </div>
 
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Nombre de parcelles *
+            </label>
+
+            <input
+              type="number"
+              disabled={editing}
+              value={nombreParcelles}
+              onChange={(e) =>
+                setNombreParcelles(e.target.value)
+              }
+              className="w-full rounded border p-2.5 text-sm outline-none"
+            />
+          </div>
         </div>
 
+        <div className="border-t pt-4">
+          <h3 className="mb-4 text-base font-semibold text-slate-900">
+            Quadrillage et voies d'accès obligatoires
+          </h3>
 
-        {/* FOOTER */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {renderVoie(
+              "Bordure Supérieure (Haut)",
+              vHaut,
+              setVHaut,
+              lHaut,
+              setLHaut
+            )}
 
-        <div
-          className="
-            flex
-            justify-end
-            gap-3
-            border-t
-            border-slate-200
-            px-6
-            py-4
-          "
-        >
+            {renderVoie(
+              "Bordure Inférieure (Bas)",
+              vBas,
+              setVBas,
+              lBas,
+              setLBas
+            )}
 
+            {renderVoie(
+              "Bordure Gauche",
+              vGauche,
+              setVGauche,
+              lGauche,
+              setLGauche
+            )}
+
+            {renderVoie(
+              "Bordure Droite",
+              vDroite,
+              setVDroite,
+              lDroite,
+              setLDroite
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t pt-4">
           <button
             type="button"
             onClick={onCancel}
-            disabled={loading}
-            className="
-              rounded-lg
-              border
-              border-slate-300
-              px-4
-              py-2.5
-              text-sm
-              font-medium
-              text-slate-700
-              hover:bg-slate-50
-              disabled:opacity-50
-            "
+            className="rounded border px-4 py-2 text-sm font-medium text-slate-700"
           >
             Annuler
           </button>
 
-
           <button
             type="submit"
             disabled={loading}
-            className="
-              rounded-lg
-              bg-slate-900
-              px-5
-              py-2.5
-              text-sm
-              font-medium
-              text-white
-              hover:bg-slate-800
-              disabled:cursor-not-allowed
-              disabled:opacity-50
-            "
+            className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           >
-            {loading
-              ? "Enregistrement..."
-              : editing
-                ? "Enregistrer les modifications"
-                : "Créer le bloc"}
+            {loading ? "Enregistrement..." : "Valider"}
           </button>
-
         </div>
-
       </form>
-
     </div>
   );
 }

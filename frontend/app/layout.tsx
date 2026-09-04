@@ -13,9 +13,9 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "LANDIS",
+  title: "NIANI'S IMO",
   description:
-    "Plateforme de gestion de lotissement LANDIS",
+    "Plateforme de gestion de lotissement NIANI'S IMO",
 };
 
 export default function RootLayout({

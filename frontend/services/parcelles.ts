@@ -53,8 +53,31 @@ export interface UpdateParcelleData {
   longitude?: number | null;
 }
 
-export async function getParcelles(): Promise<Parcelle[]> {
-  const response = await api.get("/parcelles");
+export interface ParcellesPagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface ParcellesPaginatedResponse {
+  data: Parcelle[];
+  meta: ParcellesPagination;
+}
+
+export async function getParcelles(
+  page = 1,
+  limit = 20,
+): Promise<ParcellesPaginatedResponse> {
+  const response = await api.get(
+    "/parcelles",
+    {
+      params: {
+        page,
+        limit,
+      },
+    },
+  );
 
   return response.data;
 }
