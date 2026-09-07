@@ -103,7 +103,10 @@ export default function TransactionsPage() {
       ]);
 
       setTransactions(transactionsData);
-      setParcelles(parcellesData);
+
+      // getParcelles() retourne maintenant une réponse paginée.
+      setParcelles(parcellesData.data);
+
       setAcquereurs(acquereursData);
 
     } catch (err) {
