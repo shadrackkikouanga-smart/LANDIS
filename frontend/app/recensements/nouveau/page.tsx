@@ -403,8 +403,20 @@ export default function NouveauRecensementPage() {
 
       const data = await response.json();
 
+      /*
+       * /parcelles retourne une réponse paginée :
+       *
+       * {
+       *   data: [...],
+       *   meta: {...}
+       * }
+       *
+       * Les parcelles se trouvent donc dans data.data.
+       */
       const normalized: ParcelleApi[] =
-        Array.isArray(data) ? data : [];
+        Array.isArray(data?.data)
+          ? data.data
+          : [];
 
       setParcelles(normalized);
     } catch (err) {
